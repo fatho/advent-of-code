@@ -1,11 +1,10 @@
 use std::{
     error::Error,
-    fs::File,
-    io::{BufRead, BufReader},
     path::Path,
     path::PathBuf,
-    str::FromStr,
 };
+
+use aoc2020_common::read_lines;
 
 fn main() {
     if let Some((path, count)) = parse_args() {
@@ -81,21 +80,4 @@ fn find_product(count: usize, sum: u32, sorted_nums: &[u32]) -> Option<u32> {
         }
         None
     }
-}
-
-fn read_lines<P: AsRef<Path>, T: FromStr>(path: P) -> Result<Vec<T>, Box<dyn Error>>
-where
-    T::Err: Error + 'static,
-{
-    let file = File::open(path)?;
-    let reader = BufReader::new(file);
-
-    let mut numbers: Vec<T> = Vec::new();
-
-    for line in reader.lines() {
-        let num = line?.parse::<T>()?;
-        numbers.push(num);
-    }
-
-    Ok(numbers)
 }
