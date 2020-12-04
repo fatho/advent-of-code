@@ -24,3 +24,10 @@ version = "0.1.0"
 dependencies = [
  "aoc2020-common",
 ]
+
+[[package]]
+name = "aoc2020-day04"
+version = "0.1.0"
+dependencies = [
+ "aoc2020-common",
+]
