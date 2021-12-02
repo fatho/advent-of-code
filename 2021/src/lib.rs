@@ -1,91 +1,91 @@
-use std::{io::BufRead, str::FromStr, path::PathBuf, fmt, time::Instant};
-
-use structopt::StructOpt;
+use std::{
+    io::{BufRead, BufReader, Read},
+    marker::PhantomData,
+    str::FromStr,
+};
 
 pub mod day1;
 pub mod day2;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Part {
-    One,
-    Two,
+pub mod runner;
+pub use runner::{aoc_main, Day};
+
+pub struct FileParser<R> {
+    file: BufReader<R>,
+    buffer: String,
+    error: Option<std::io::Error>,
 }
 
-#[derive(Debug, Clone)]
-pub struct NoPart;
-
-impl fmt::Display for NoPart {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "only part 1 and 2 are valid")
-    }
-}
-
-impl FromStr for Part {
-    type Err = NoPart;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "1" => Ok(Part::One),
-            "2" => Ok(Part::Two),
-            _ => Err(NoPart),
-        }
-    }
-}
-
-#[derive(Debug, StructOpt)]
-#[structopt(name = "advent-of-code", about = "Solutions for Advent of Code puzzles.")]
-pub struct AocOpt {
-    #[structopt(short, long)]
-    day: i32,
-
-    #[structopt(short, long, default_value("1"))]
-    part: Part,
-
-    /// Input file
-    #[structopt(short, long, parse(from_os_str))]
-    input: PathBuf,
-}
-
-
-pub struct Day {
-    pub first: fn(&mut dyn std::io::Read) -> std::io::Result<()>,
-    pub second: fn(&mut dyn std::io::Read) -> std::io::Result<()>,
-}
-
-impl Day {
-    pub fn unsolved() -> Self {
-        fn no_solution(_: &mut dyn std::io::Read) -> std::io::Result<()> {
-            Err(std::io::ErrorKind::Unsupported.into())
-        }
+impl<R: Read> FileParser<R> {
+    pub fn new(file: R) -> Self {
         Self {
-            first: no_solution,
-            second: no_solution,
+            file: BufReader::new(file),
+            buffer: String::new(),
+            error: None,
+        }
+    }
+
+    pub fn iter_parse<T>(&mut self) -> ParseIter<R, T> {
+        ParseIter {
+            parser: self,
+            output: PhantomData,
+        }
+    }
+
+    pub fn parse_line<T: FromStr>(&mut self) -> Option<T> {
+        self.buffer.clear();
+        match self.file.read_line(&mut self.buffer) {
+            Ok(n) => {
+                if n == 0 {
+                    None
+                } else {
+                    match self.buffer.trim_end_matches('\n').parse::<T>() {
+                        Ok(val) => Some(val),
+                        Err(_err) => {
+                            self.error = Some(std::io::Error::new(
+                                std::io::ErrorKind::InvalidData,
+                                "no parse",
+                            ));
+                            None
+                        }
+                    }
+                }
+            }
+            Err(err) => {
+                self.error = Some(err);
+                None
+            },
+        }
+    }
+
+    pub fn finish(self) -> std::io::Result<()> {
+        match self.error {
+            Some(err) => Err(err),
+            None => Ok(()),
         }
     }
 }
 
-pub fn aoc_main(days: &[Day]) -> Result<(), std::io::Error> {
-    let opt = AocOpt::from_args();
-    if let Some(day) = days.get((opt.day - 1) as usize) {
-        let runner = match opt.part {
-            Part::One => day.first,
-            Part::Two => day.second,
-        };
-        let mut input = std::fs::File::open(opt.input)?;
-        let before = Instant::now();
-        runner(&mut input)?;
-        let duration = before.elapsed();
-        eprintln!("Took {:.3} ms", duration.as_secs_f64() * 1000.0);
-        Ok(())
-    } else {
-        Err(std::io::ErrorKind::NotFound.into())
+pub struct ParseIter<'a, R, T> {
+    parser: &'a mut FileParser<R>,
+    output: PhantomData<T>,
+}
+
+impl<'a, R, T> Iterator for ParseIter<'a, R, T> where R: Read, T: FromStr {
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.parser.parse_line()
     }
 }
 
 pub trait BufReadExt: BufRead {
     fn read_parse<T: FromStr>(&mut self, buffer: &mut String) -> std::io::Result<T> {
         match self.read_parse_or_eof(buffer) {
-            Ok(None) => Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "no parse")),
+            Ok(None) => Err(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                "no parse",
+            )),
             Ok(Some(v)) => Ok(v),
             Err(e) => Err(e),
         }
@@ -94,7 +94,7 @@ pub trait BufReadExt: BufRead {
     fn read_parse_or_eof<T: FromStr>(&mut self, buffer: &mut String) -> std::io::Result<Option<T>> {
         buffer.clear();
         if self.read_line(buffer)? == 0 {
-            return Ok(None)
+            return Ok(None);
         }
         let val = buffer
             .trim_end_matches('\n')

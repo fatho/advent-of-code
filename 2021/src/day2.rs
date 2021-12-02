@@ -1,46 +1,49 @@
-use crate::{BufReadExt};
-use std::io::{self, Read};
+use crate::FileParser;
+use std::io::Read;
 use std::str::FromStr;
 
 pub fn part1(input: &mut dyn Read) -> std::io::Result<()> {
-    let mut reader = io::BufReader::new(input);
-    let mut line = String::new();
-    
+    let mut parser = FileParser::new(input);
+
     let mut depth = 0;
     let mut x = 0;
-    
-    while let Some(cmd) = reader.read_parse_or_eof::<CtrlCmd>(&mut line)? {
+
+    for cmd in parser.iter_parse::<CtrlCmd>() {
         match cmd.dir {
             CtrlDir::Up => depth -= cmd.amount,
             CtrlDir::Down => depth += cmd.amount,
             CtrlDir::Forward => x += cmd.amount,
         }
     }
+
+    parser.finish()?;
+
     println!("{}", depth * x);
     Ok(())
 }
 
 pub fn part2(input: &mut dyn Read) -> std::io::Result<()> {
-    let mut reader = io::BufReader::new(input);
-    let mut line = String::new();
-    
+    let mut parser = FileParser::new(input);
+
     let mut depth = 0;
     let mut aim = 0;
     let mut x = 0;
-    
-    while let Some(cmd) = reader.read_parse_or_eof::<CtrlCmd>(&mut line)? {
+
+    for cmd in parser.iter_parse::<CtrlCmd>() {
         match cmd.dir {
             CtrlDir::Up => aim -= cmd.amount,
             CtrlDir::Down => aim += cmd.amount,
             CtrlDir::Forward => {
                 x += cmd.amount;
                 depth += aim * cmd.amount;
-            },
+            }
         }
     }
+    parser.finish()?;
     println!("{}", depth * x);
     Ok(())
-}enum CtrlDir {
+}
+enum CtrlDir {
     Up,
     Down,
     Forward,
@@ -59,7 +62,7 @@ impl FromStr for CtrlDir {
             "up" => Ok(CtrlDir::Up),
             "down" => Ok(CtrlDir::Down),
             "forward" => Ok(CtrlDir::Forward),
-            _ => Err(())
+            _ => Err(()),
         }
     }
 }
