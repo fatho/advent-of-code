@@ -2,6 +2,9 @@ use std::{io::BufRead, str::FromStr, path::PathBuf, fmt, time::Instant};
 
 use structopt::StructOpt;
 
+pub mod day1;
+pub mod day2;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Part {
     One,
