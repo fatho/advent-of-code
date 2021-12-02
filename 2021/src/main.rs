@@ -1,47 +1,26 @@
-use advent_of_code_2021::BufReadExt;
+use advent_of_code_2021::{BufReadExt, aoc_main, Day};
 use std::collections::VecDeque;
-use std::error::Error;
-use std::io;
-use std::path::{Path, PathBuf};
+use std::io::{self, Read};
 use std::str::FromStr;
-use std::time::Instant;
-use structopt::StructOpt;
 
-#[derive(Debug, StructOpt)]
-#[structopt(name = "example", about = "An example of StructOpt usage.")]
-struct Opt {
-    #[structopt(short, long)]
-    day: i32,
 
-    #[structopt(short, long, default_value("1"))]
-    part: i32,
-
-    /// Input file
-    #[structopt(short, long, parse(from_os_str))]
-    input: PathBuf,
+fn main() -> std::io::Result<()> {
+    aoc_main(&[
+        Day { first: day1_1, second: day1_2 },
+        Day { first: day2_1, second: day2_2 },
+    ])
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let opt = Opt::from_args();
-    let before = Instant::now();
-    match opt.day {
-        1 => day1(&opt.input, if opt.part == 1 { 1 } else { 3 })?,
-        2 => day2(&opt.input, opt.part != 1)?,
-        _ => {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "This day is not implemented yet",
-            )
-            .into());
-        }
-    }
-    let duration = before.elapsed();
-    eprintln!("Took {:.3} ms", duration.as_secs_f64() * 1000.0);
-    Ok(())
+fn day1_1(input: &mut dyn Read) -> std::io::Result<()> {
+    day1_impl(input, 1)
 }
 
-fn day1(input: &Path, window_size: usize) -> Result<(), Box<dyn Error>> {
-    let mut reader = io::BufReader::new(std::fs::File::open(input)?);
+fn day1_2(input: &mut dyn Read) -> std::io::Result<()> {
+    day1_impl(input, 3)
+}
+
+fn day1_impl(input: &mut dyn Read, window_size: usize) -> std::io::Result<()> {
+    let mut reader = io::BufReader::new(input);
     let mut line = String::new();
     let mut increases = 0;
     let mut window_sum: i32 = 0;
@@ -106,8 +85,26 @@ impl FromStr for CtrlCmd {
     }
 }
 
-fn day2(input: &Path, use_aim: bool) -> Result<(), Box<dyn Error>> {
-    let mut reader = io::BufReader::new(std::fs::File::open(input)?);
+fn day2_1(input: &mut dyn Read) -> std::io::Result<()> {
+    let mut reader = io::BufReader::new(input);
+    let mut line = String::new();
+    
+    let mut depth = 0;
+    let mut x = 0;
+    
+    while let Some(cmd) = reader.read_parse_or_eof::<CtrlCmd>(&mut line)? {
+        match cmd.dir {
+            CtrlDir::Up => depth -= cmd.amount,
+            CtrlDir::Down => depth += cmd.amount,
+            CtrlDir::Forward => x += cmd.amount,
+        }
+    }
+    println!("{}", depth * x);
+    Ok(())
+}
+
+fn day2_2(input: &mut dyn Read) -> std::io::Result<()> {
+    let mut reader = io::BufReader::new(input);
     let mut line = String::new();
     
     let mut depth = 0;
@@ -115,21 +112,13 @@ fn day2(input: &Path, use_aim: bool) -> Result<(), Box<dyn Error>> {
     let mut x = 0;
     
     while let Some(cmd) = reader.read_parse_or_eof::<CtrlCmd>(&mut line)? {
-        if use_aim {
-            match cmd.dir {
-                CtrlDir::Up => aim -= cmd.amount,
-                CtrlDir::Down => aim += cmd.amount,
-                CtrlDir::Forward => {
-                    x += cmd.amount;
-                    depth += aim * cmd.amount;
-                },
-            }
-        } else {
-            match cmd.dir {
-                CtrlDir::Up => depth -= cmd.amount,
-                CtrlDir::Down => depth += cmd.amount,
-                CtrlDir::Forward => x += cmd.amount,
-            }
+        match cmd.dir {
+            CtrlDir::Up => aim -= cmd.amount,
+            CtrlDir::Down => aim += cmd.amount,
+            CtrlDir::Forward => {
+                x += cmd.amount;
+                depth += aim * cmd.amount;
+            },
         }
     }
     println!("{}", depth * x);
