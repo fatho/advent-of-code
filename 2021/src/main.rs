@@ -3,6 +3,7 @@ use std::collections::VecDeque;
 use std::error::Error;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::time::Instant;
 use structopt::StructOpt;
 
@@ -25,6 +26,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let before = Instant::now();
     match opt.day {
         1 => day1(&opt.input, if opt.part == 1 { 1 } else { 3 })?,
+        2 => day2(&opt.input)?,
         _ => {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -64,5 +66,60 @@ fn day1(input: &Path, window_size: usize) -> Result<(), Box<dyn Error>> {
         line.clear();
     }
     println!("{}", increases);
+    Ok(())
+}
+
+
+enum CtrlDir {
+    Up,
+    Down,
+    Forward,
+}
+
+struct CtrlCmd {
+    dir: CtrlDir,
+    amount: i32,
+}
+
+impl FromStr for CtrlDir {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "up" => Ok(CtrlDir::Up),
+            "down" => Ok(CtrlDir::Down),
+            "forward" => Ok(CtrlDir::Forward),
+            _ => Err(())
+        }
+    }
+}
+
+impl FromStr for CtrlCmd {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (cmd, amount) = s.split_once(' ').ok_or(())?;
+        Ok(CtrlCmd {
+            dir: cmd.parse().map_err(|_| ())?,
+            amount: amount.parse().map_err(|_| ())?,
+        })
+    }
+}
+
+fn day2(input: &Path) -> Result<(), Box<dyn Error>> {
+    let mut reader = io::BufReader::new(std::fs::File::open(input)?);
+    let mut line = String::new();
+    
+    let mut depth = 0;
+    let mut x = 0;
+    
+    while let Some(cmd) = reader.read_parse_or_eof::<CtrlCmd>(&mut line)? {
+        match cmd.dir {
+            CtrlDir::Up => depth -= cmd.amount,
+            CtrlDir::Down => depth += cmd.amount,
+            CtrlDir::Forward => x += cmd.amount,
+        }
+    }
+    println!("{}", depth * x);
     Ok(())
 }
