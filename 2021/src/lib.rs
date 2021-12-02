@@ -6,6 +6,7 @@ use std::{
 
 pub mod day1;
 pub mod day2;
+pub mod day3;
 
 pub mod runner;
 pub use runner::{aoc_main, Day};
@@ -54,7 +55,7 @@ impl<R: Read> FileParser<R> {
             Err(err) => {
                 self.error = Some(err);
                 None
-            },
+            }
         }
     }
 
@@ -71,7 +72,11 @@ pub struct ParseIter<'a, R, T> {
     output: PhantomData<T>,
 }
 
-impl<'a, R, T> Iterator for ParseIter<'a, R, T> where R: Read, T: FromStr {
+impl<'a, R, T> Iterator for ParseIter<'a, R, T>
+where
+    R: Read,
+    T: FromStr,
+{
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
