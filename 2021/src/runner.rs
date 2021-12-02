@@ -45,14 +45,14 @@ pub struct AocOpt {
 
 
 pub struct Day {
-    pub first: fn(&mut dyn std::io::Read) -> std::io::Result<()>,
-    pub second: fn(&mut dyn std::io::Read) -> std::io::Result<()>,
+    pub first: fn(&mut dyn std::io::Read) -> anyhow::Result<()>,
+    pub second: fn(&mut dyn std::io::Read) -> anyhow::Result<()>,
 }
 
 impl Day {
     pub fn unsolved() -> Self {
-        fn no_solution(_: &mut dyn std::io::Read) -> std::io::Result<()> {
-            Err(std::io::ErrorKind::Unsupported.into())
+        fn no_solution(_: &mut dyn std::io::Read) -> anyhow::Result<()> {
+            anyhow::bail!("no solution for this day");
         }
         Self {
             first: no_solution,
@@ -61,7 +61,7 @@ impl Day {
     }
 }
 
-pub fn aoc_main(days: &[Day]) -> Result<(), std::io::Error> {
+pub fn aoc_main(days: &[Day]) -> anyhow::Result<()> {
     let opt = AocOpt::from_args();
     if let Some(day) = days.get((opt.day - 1) as usize) {
         let runner = match opt.part {
@@ -75,6 +75,6 @@ pub fn aoc_main(days: &[Day]) -> Result<(), std::io::Error> {
         eprintln!("Took {:.3} ms", duration.as_secs_f64() * 1000.0);
         Ok(())
     } else {
-        Err(std::io::ErrorKind::NotFound.into())
+        anyhow::bail!("no such day")
     }
 }

@@ -2,7 +2,7 @@ use crate::FileParser;
 use std::io::Read;
 use std::str::FromStr;
 
-pub fn part1(input: &mut dyn Read) -> std::io::Result<()> {
+pub fn part1(input: &mut dyn Read) -> anyhow::Result<()> {
     let mut parser = FileParser::new(input);
 
     let mut depth = 0;
@@ -22,7 +22,7 @@ pub fn part1(input: &mut dyn Read) -> std::io::Result<()> {
     Ok(())
 }
 
-pub fn part2(input: &mut dyn Read) -> std::io::Result<()> {
+pub fn part2(input: &mut dyn Read) -> anyhow::Result<()> {
     let mut parser = FileParser::new(input);
 
     let mut depth = 0;
@@ -43,6 +43,7 @@ pub fn part2(input: &mut dyn Read) -> std::io::Result<()> {
     println!("{}", depth * x);
     Ok(())
 }
+
 enum CtrlDir {
     Up,
     Down,
