@@ -13,7 +13,7 @@ struct Opt {
     #[structopt(short, long)]
     day: i32,
 
-    #[structopt(short, long)]
+    #[structopt(short, long, default_value("1"))]
     part: i32,
 
     /// Input file
@@ -26,7 +26,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let before = Instant::now();
     match opt.day {
         1 => day1(&opt.input, if opt.part == 1 { 1 } else { 3 })?,
-        2 => day2(&opt.input)?,
+        2 => day2(&opt.input, opt.part != 1)?,
         _ => {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -78,7 +78,7 @@ enum CtrlDir {
 
 struct CtrlCmd {
     dir: CtrlDir,
-    amount: i32,
+    amount: i64,
 }
 
 impl FromStr for CtrlDir {
@@ -106,18 +106,30 @@ impl FromStr for CtrlCmd {
     }
 }
 
-fn day2(input: &Path) -> Result<(), Box<dyn Error>> {
+fn day2(input: &Path, use_aim: bool) -> Result<(), Box<dyn Error>> {
     let mut reader = io::BufReader::new(std::fs::File::open(input)?);
     let mut line = String::new();
     
     let mut depth = 0;
+    let mut aim = 0;
     let mut x = 0;
     
     while let Some(cmd) = reader.read_parse_or_eof::<CtrlCmd>(&mut line)? {
-        match cmd.dir {
-            CtrlDir::Up => depth -= cmd.amount,
-            CtrlDir::Down => depth += cmd.amount,
-            CtrlDir::Forward => x += cmd.amount,
+        if use_aim {
+            match cmd.dir {
+                CtrlDir::Up => aim -= cmd.amount,
+                CtrlDir::Down => aim += cmd.amount,
+                CtrlDir::Forward => {
+                    x += cmd.amount;
+                    depth += aim * cmd.amount;
+                },
+            }
+        } else {
+            match cmd.dir {
+                CtrlDir::Up => depth -= cmd.amount,
+                CtrlDir::Down => depth += cmd.amount,
+                CtrlDir::Forward => x += cmd.amount,
+            }
         }
     }
     println!("{}", depth * x);
