@@ -22,17 +22,59 @@ pub fn part1(input: &mut dyn Read) -> anyhow::Result<()> {
 
 pub fn part2(input: &mut dyn Read) -> anyhow::Result<()> {
     let mut parser = FileParser::new(input);
-
-    todo!("implement solution here");
+    let nums: Vec<_> = parser.iter_parse::<Binary>().collect();
 
     parser.finish()?;
 
-    println!("{}", 0);
+    let mut o2_candidates = nums.clone();
+    let mut bit = 0;
+    while o2_candidates.len() > 1 {
+        let mut counts = Counts::new();
+        for num in o2_candidates.iter() {
+            counts.count(num);
+        }
+        let mcb = counts.most_common_bit(bit).unwrap_or(true);
+        o2_candidates.retain(|num| num.digits[bit] == mcb);
+        bit += 1;
+    }
+
+    let mut co2_candidates = nums.clone();
+    let mut bit = 0;
+    while co2_candidates.len() > 1 {
+        let mut counts = Counts::new();
+        for num in co2_candidates.iter() {
+            counts.count(num);
+        }
+        let lcb = !counts.most_common_bit(bit).unwrap_or(true);
+        co2_candidates.retain(|num| num.digits[bit] == lcb);
+        bit += 1;
+    }
+
+    eprintln!("{:?}", o2_candidates[0]);
+    let o2 = o2_candidates[0].to_u64();
+    let co2 = co2_candidates[0].to_u64();
+
+    eprintln!("o2: {}, co2: {}", o2, co2);
+    println!("{}", o2 * co2);
     Ok(())
 }
 
+#[derive(Debug, Clone)]
 struct Binary {
     digits: Vec<bool>,
+}
+
+impl Binary {
+    pub fn to_u64(&self) -> u64 {
+        let mut acc = 0;
+        for d in self.digits.iter() {
+            acc *= 2;
+            if *d {
+                acc += 1;
+            }
+        }
+        acc
+    }
 }
 
 impl FromStr for Binary {
@@ -96,5 +138,13 @@ impl Counts {
             }
         }
         (epsilon, gamma)
+    }
+
+    pub fn most_common_bit(&self, index: usize) -> Option<bool> {
+        match self.zeros[index].cmp(&self.ones[index]) {
+            Ordering::Less => Some(true),
+            Ordering::Equal => None,
+            Ordering::Greater => Some(false),
+        }
     }
 }
