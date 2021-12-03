@@ -38,7 +38,7 @@ pub fn part2(input: &mut dyn Read) -> anyhow::Result<()> {
         bit += 1;
     }
 
-    let mut co2_candidates = nums.clone();
+    let mut co2_candidates = nums;
     let mut bit = 0;
     while co2_candidates.len() > 1 {
         let mut counts = Counts::new();
@@ -126,15 +126,18 @@ impl Counts {
     pub fn epsilon_gamma(&self) -> (u64, u64) {
         let mut epsilon = 0;
         let mut gamma = 0;
-        for (i, (c0, c1)) in self.zeros.iter().zip(self.ones.iter()).enumerate() {
+        for i in 0..self.num_digits {
             epsilon *= 2;
             gamma *= 2;
-            if c0 > c1 {
-                epsilon += 1;
-            } else if c0 < c1 {
-                gamma += 1;
-            } else {
-                eprintln!("tie at bit {}", i);
+            match self.most_common_bit(i) {
+                Some(bit) => {
+                    if bit {
+                        gamma += 1;
+                    } else {
+                        epsilon += 1;
+                    }
+                }
+                None => eprintln!("tie at bit {}", i),
             }
         }
         (epsilon, gamma)

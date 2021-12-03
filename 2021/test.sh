@@ -35,4 +35,5 @@ end_tests() {
 
 check_day 1 1527 1575
 check_day 2 1507611 1880593125
+check_day 3 4147524 3570354
 end_tests
