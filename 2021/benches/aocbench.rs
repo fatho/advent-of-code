@@ -4,10 +4,10 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 fn bench_day(c: &mut Criterion, name: &str, day: Day, input: &[u8]) {
     c.bench_function(format!("{}.1", name).as_ref(), |b| {
-        b.iter(|| (day.part1)(black_box(&mut input.clone())).unwrap())
+        b.iter(|| (day.part1)(black_box(input)).unwrap())
     });
     c.bench_function(format!("{}.2", name).as_ref(), |b| {
-        b.iter(|| (day.part2)(black_box(&mut input.clone())).unwrap())
+        b.iter(|| (day.part2)(black_box(input)).unwrap())
     });
 }
 

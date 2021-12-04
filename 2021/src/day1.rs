@@ -2,19 +2,18 @@ use anyhow::Context;
 
 use crate::{Day, FileParser};
 use std::collections::VecDeque;
-use std::io::Read;
 
 pub static RUN: Day = Day { part1, part2 };
 
-pub fn part1(input: &mut dyn Read) -> anyhow::Result<i64> {
+pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
     day1_impl(input, 1)
 }
 
-pub fn part2(input: &mut dyn Read) -> anyhow::Result<i64> {
+pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
     day1_impl(input, 3)
 }
 
-fn day1_impl(input: &mut dyn Read, window_size: usize) -> anyhow::Result<i64> {
+fn day1_impl(input: &[u8], window_size: usize) -> anyhow::Result<i64> {
     let mut parser = FileParser::new(input);
 
     let mut increases = 0;

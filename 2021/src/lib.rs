@@ -118,7 +118,7 @@ macro_rules! test_day {
 
             #[test]
             fn part1() {
-                let output1 = ($day.part1)(&mut INPUT.as_ref()).expect("part 1 should work");
+                let output1 = ($day.part1)(INPUT).expect("part 1 should work");
                 assert_eq!(output1, $part1, "part 1");
             }
             #[test]

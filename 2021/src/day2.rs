@@ -1,10 +1,9 @@
 use crate::{Day, FileParser};
-use std::io::Read;
 use std::str::FromStr;
 
 pub static RUN: Day = Day { part1, part2 };
 
-pub fn part1(input: &mut dyn Read) -> anyhow::Result<i64> {
+pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
     let mut parser = FileParser::new(input);
 
     let mut depth = 0;
@@ -23,7 +22,7 @@ pub fn part1(input: &mut dyn Read) -> anyhow::Result<i64> {
     Ok((depth * x) as i64)
 }
 
-pub fn part2(input: &mut dyn Read) -> anyhow::Result<i64> {
+pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
     let mut parser = FileParser::new(input);
 
     let mut depth = 0;

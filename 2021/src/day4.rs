@@ -1,35 +1,30 @@
-use anyhow::{bail, Context};
+use anyhow::bail;
+use nom::{
+    bytes::{complete::take_while, streaming::tag},
+    character::complete::digit1,
+    combinator::{map, map_res},
+    multi::{many0, many_m_n, separated_list0},
+    sequence::{pair, terminated},
+    IResult,
+};
 
-use crate::{Day, FileParser};
-use std::io::Read;
+use crate::Day;
 
 pub static RUN: Day = Day { part1, part2 };
 
-pub fn part1(input: &mut dyn Read) -> anyhow::Result<i64> {
-    let mut parser = FileParser::new(input);
-
-    let draws: Vec<u32> = parser
-        .read_line()
-        .context("bingo draws")?
-        .split(',')
-        .map(|s| s.parse::<u32>())
-        .collect::<Result<Vec<_>, _>>()
-        .context("parsing draws")?;
-
-    if !matches!(parser.read_line(), Some("")) {
-        bail!("missing empty line")
+pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
+    let (rest, mut bingo) = p_bingo(input).map_err(|_| anyhow::anyhow!("parsing failed"))?;
+    if !rest.is_empty() {
+        bail!(
+            "could not parse whole input: {}",
+            std::str::from_utf8(rest).unwrap()
+        );
     }
 
-    let mut boards = Vec::new();
-    while let Some(board) = parse_board(&mut parser) {
-        boards.push(board)
-    }
-
-    parser.finish()?;
     let mut win = None;
 
-    'bingo: for draw in draws {
-        for board in boards.iter_mut() {
+    'bingo: for draw in bingo.draws {
+        for board in bingo.boards.iter_mut() {
             board.mark(draw);
             if board.won() {
                 win = Some((board.sum_unmarked(), draw));
@@ -45,33 +40,20 @@ pub fn part1(input: &mut dyn Read) -> anyhow::Result<i64> {
     }
 }
 
-pub fn part2(input: &mut dyn Read) -> anyhow::Result<i64> {
-    let mut parser = FileParser::new(input);
-
-    let draws: Vec<u32> = parser
-        .read_line()
-        .context("bingo draws")?
-        .split(',')
-        .map(|s| s.parse::<u32>())
-        .collect::<Result<Vec<_>, _>>()
-        .context("parsing draws")?;
-
-    if !matches!(parser.read_line(), Some("")) {
-        bail!("missing empty line")
+pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
+    let (rest, mut bingo) = p_bingo(input).map_err(|_| anyhow::anyhow!("parsing failed"))?;
+    if !rest.is_empty() {
+        bail!(
+            "could not parse whole input: {}",
+            std::str::from_utf8(rest).unwrap()
+        );
     }
-
-    let mut boards = Vec::new();
-    while let Some(board) = parse_board(&mut parser) {
-        boards.push(board)
-    }
-
-    parser.finish()?;
 
     let mut last_win = None;
-    let mut board_won = vec![false; boards.len()];
+    let mut board_won = vec![false; bingo.boards.len()];
 
-    for draw in draws {
-        for (i, board) in boards.iter_mut().enumerate() {
+    for draw in bingo.draws {
+        for (i, board) in bingo.boards.iter_mut().enumerate() {
             board.mark(draw);
             if !board_won[i] && board.won() {
                 board_won[i] = true;
@@ -87,22 +69,43 @@ pub fn part2(input: &mut dyn Read) -> anyhow::Result<i64> {
     }
 }
 
-fn parse_board<R: Read>(parser: &mut FileParser<R>) -> Option<Board> {
-    let mut numbers = Vec::new();
-    for _ in 0..BOARD_WIDTH {
-        for num in parser
-            .read_line()?
-            .split_whitespace()
-            .map(|s| s.parse::<u32>())
-        {
-            numbers.push(num.ok()?)
-        }
-    }
-    if matches!(parser.read_line(), Some("") | None) {
-        Some(Board::new(numbers))
-    } else {
-        None
-    }
+struct Bingo {
+    draws: Vec<u32>,
+    boards: Vec<Board>,
+}
+
+fn p_u32(input: &[u8]) -> IResult<&[u8], u32> {
+    map_res(digit1, |num_bytes| {
+        let num_str = std::str::from_utf8(num_bytes).expect("digits should always be valid UTF8");
+        u32::from_str_radix(num_str, 10)
+    })(input)
+}
+
+fn p_board(input: &[u8]) -> IResult<&[u8], Board> {
+    const BOARD_SIZE: usize = BOARD_WIDTH * BOARD_WIDTH;
+    map(
+        many_m_n(
+            BOARD_SIZE,
+            BOARD_SIZE,
+            terminated(p_u32, take_while(|x: u8| x.is_ascii_whitespace())),
+        ),
+        |numbers| Board::new(numbers),
+    )(input)
+}
+
+fn p_bingo(input: &[u8]) -> IResult<&[u8], Bingo> {
+    map(
+        pair(
+            // first line holds the numbers to be drawn
+            terminated(
+                separated_list0(tag(","), p_u32),
+                take_while(|x: u8| x.is_ascii_whitespace()),
+            ),
+            // followed by many boards
+            many0(p_board),
+        ),
+        |(draws, boards)| Bingo { draws, boards },
+    )(input)
 }
 
 const BOARD_WIDTH: usize = 5;
@@ -137,7 +140,9 @@ impl Board {
             0b1000010000100001000010000,
         ];
         for mask in WINNING {
-            if self.marked & mask == *mask { return true; }
+            if self.marked & mask == *mask {
+                return true;
+            }
         }
         false
     }

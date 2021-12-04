@@ -1,4 +1,4 @@
-use std::{fmt, path::PathBuf, str::FromStr, time::Instant};
+use std::{fmt, path::PathBuf, str::FromStr, time::Instant, io::Read};
 
 use structopt::StructOpt;
 
@@ -48,13 +48,13 @@ pub struct AocOpt {
 
 #[derive(Clone, Copy)]
 pub struct Day {
-    pub part1: fn(&mut dyn std::io::Read) -> anyhow::Result<i64>,
-    pub part2: fn(&mut dyn std::io::Read) -> anyhow::Result<i64>,
+    pub part1: fn(&[u8]) -> anyhow::Result<i64>,
+    pub part2: fn(&[u8]) -> anyhow::Result<i64>,
 }
 
 impl Day {
     pub fn unsolved() -> Self {
-        fn no_solution(_: &mut dyn std::io::Read) -> anyhow::Result<i64> {
+        fn no_solution(_: &[u8]) -> anyhow::Result<i64> {
             anyhow::bail!("no solution for this day");
         }
         Self {
@@ -71,9 +71,11 @@ pub fn aoc_main(days: &[Day]) -> anyhow::Result<()> {
             Part::One => day.part1,
             Part::Two => day.part2,
         };
-        let mut input = std::fs::File::open(opt.input)?;
+        let mut file = std::fs::File::open(opt.input)?;
+        let mut input = Vec::new();
+        file.read_to_end(&mut input)?;
         let before = Instant::now();
-        let output = runner(&mut input)?;
+        let output = runner(&input)?;
         println!("{}", output);
         let duration = before.elapsed();
         eprintln!("Took {:.3} ms", duration.as_secs_f64() * 1000.0);
