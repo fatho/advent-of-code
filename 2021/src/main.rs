@@ -1,4 +1,4 @@
-use advent_of_code_2021::{aoc_main, day1, day2, day3, Day};
+use advent_of_code_2021::{aoc_main, day1, day2, day3, day4, Day};
 
 fn main() -> anyhow::Result<()> {
     aoc_main(&[
@@ -13,6 +13,10 @@ fn main() -> anyhow::Result<()> {
         Day {
             first: day3::part1,
             second: day3::part2,
+        },
+        Day {
+            first: day4::part1,
+            second: day4::part2,
         },
     ])
 }

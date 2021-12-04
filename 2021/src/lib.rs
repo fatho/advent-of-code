@@ -7,6 +7,7 @@ use std::{
 pub mod day1;
 pub mod day2;
 pub mod day3;
+pub mod day4;
 
 pub mod runner;
 pub use runner::{aoc_main, Day};
@@ -50,6 +51,23 @@ impl<R: Read> FileParser<R> {
                             None
                         }
                     }
+                }
+            }
+            Err(err) => {
+                self.error = Some(err);
+                None
+            }
+        }
+    }
+
+    pub fn read_line(&mut self) -> Option<&str> {
+        self.buffer.clear();
+        match self.file.read_line(&mut self.buffer) {
+            Ok(n) => {
+                if n == 0 {
+                    None
+                } else {
+                    Some(self.buffer.trim_end_matches('\n'))
                 }
             }
             Err(err) => {
