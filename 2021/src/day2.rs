@@ -4,7 +4,7 @@ use std::str::FromStr;
 
 pub static RUN: Day = Day { part1, part2 };
 
-pub fn part1(input: &mut dyn Read) -> anyhow::Result<()> {
+pub fn part1(input: &mut dyn Read) -> anyhow::Result<i64> {
     let mut parser = FileParser::new(input);
 
     let mut depth = 0;
@@ -20,11 +20,10 @@ pub fn part1(input: &mut dyn Read) -> anyhow::Result<()> {
 
     parser.finish()?;
 
-    println!("{}", depth * x);
-    Ok(())
+    Ok((depth * x) as i64)
 }
 
-pub fn part2(input: &mut dyn Read) -> anyhow::Result<()> {
+pub fn part2(input: &mut dyn Read) -> anyhow::Result<i64> {
     let mut parser = FileParser::new(input);
 
     let mut depth = 0;
@@ -42,8 +41,7 @@ pub fn part2(input: &mut dyn Read) -> anyhow::Result<()> {
         }
     }
     parser.finish()?;
-    println!("{}", depth * x);
-    Ok(())
+    Ok((depth * x) as i64)
 }
 
 enum CtrlDir {

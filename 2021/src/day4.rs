@@ -5,7 +5,7 @@ use std::io::Read;
 
 pub static RUN: Day = Day { part1, part2 };
 
-pub fn part1(input: &mut dyn Read) -> anyhow::Result<()> {
+pub fn part1(input: &mut dyn Read) -> anyhow::Result<i64> {
     let mut parser = FileParser::new(input);
 
     let draws: Vec<u32> = parser
@@ -39,14 +39,13 @@ pub fn part1(input: &mut dyn Read) -> anyhow::Result<()> {
     }
 
     if let Some((sum, last_draw)) = win {
-        println!("{}", sum * last_draw);
+        Ok((sum * last_draw) as i64)
     } else {
         bail!("no win")
     }
-    Ok(())
 }
 
-pub fn part2(input: &mut dyn Read) -> anyhow::Result<()> {
+pub fn part2(input: &mut dyn Read) -> anyhow::Result<i64> {
     let mut parser = FileParser::new(input);
 
     let draws: Vec<u32> = parser
@@ -82,11 +81,10 @@ pub fn part2(input: &mut dyn Read) -> anyhow::Result<()> {
     }
 
     if let Some((sum, last_draw)) = last_win {
-        println!("{}", sum * last_draw);
+        Ok((sum * last_draw) as i64)
     } else {
         bail!("no win")
     }
-    Ok(())
 }
 
 fn parse_board<R: Read>(parser: &mut FileParser<R>) -> Option<Board> {

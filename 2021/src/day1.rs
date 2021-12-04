@@ -6,15 +6,15 @@ use std::io::Read;
 
 pub static RUN: Day = Day { part1, part2 };
 
-pub fn part1(input: &mut dyn Read) -> anyhow::Result<()> {
+pub fn part1(input: &mut dyn Read) -> anyhow::Result<i64> {
     day1_impl(input, 1)
 }
 
-pub fn part2(input: &mut dyn Read) -> anyhow::Result<()> {
+pub fn part2(input: &mut dyn Read) -> anyhow::Result<i64> {
     day1_impl(input, 3)
 }
 
-fn day1_impl(input: &mut dyn Read, window_size: usize) -> anyhow::Result<()> {
+fn day1_impl(input: &mut dyn Read, window_size: usize) -> anyhow::Result<i64> {
     let mut parser = FileParser::new(input);
 
     let mut increases = 0;
@@ -42,6 +42,5 @@ fn day1_impl(input: &mut dyn Read, window_size: usize) -> anyhow::Result<()> {
     }
 
     parser.finish()?;
-    println!("{}", increases);
-    Ok(())
+    Ok(increases as i64)
 }

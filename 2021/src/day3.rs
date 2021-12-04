@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 pub static RUN: Day = Day { part1, part2 };
 
-pub fn part1(input: &mut dyn Read) -> anyhow::Result<()> {
+pub fn part1(input: &mut dyn Read) -> anyhow::Result<i64> {
     let mut parser = FileParser::new(input);
     let mut counts = Counts::new();
 
@@ -18,11 +18,10 @@ pub fn part1(input: &mut dyn Read) -> anyhow::Result<()> {
     let (epsilon, gamma) = counts.epsilon_gamma();
 
     eprintln!("epsilon: {}, gamma: {}", epsilon, gamma);
-    println!("{}", epsilon * gamma);
-    Ok(())
+    Ok((epsilon * gamma) as i64)
 }
 
-pub fn part2(input: &mut dyn Read) -> anyhow::Result<()> {
+pub fn part2(input: &mut dyn Read) -> anyhow::Result<i64> {
     let mut parser = FileParser::new(input);
     let nums: Vec<_> = parser.iter_parse::<Binary>().collect();
 
@@ -57,8 +56,7 @@ pub fn part2(input: &mut dyn Read) -> anyhow::Result<()> {
     let co2 = co2_candidates[0].to_u64();
 
     eprintln!("o2: {}, co2: {}", o2, co2);
-    println!("{}", o2 * co2);
-    Ok(())
+    Ok((o2 * co2) as i64)
 }
 
 #[derive(Debug, Clone)]

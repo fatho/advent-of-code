@@ -48,13 +48,13 @@ pub struct AocOpt {
 
 #[derive(Clone, Copy)]
 pub struct Day {
-    pub part1: fn(&mut dyn std::io::Read) -> anyhow::Result<()>,
-    pub part2: fn(&mut dyn std::io::Read) -> anyhow::Result<()>,
+    pub part1: fn(&mut dyn std::io::Read) -> anyhow::Result<i64>,
+    pub part2: fn(&mut dyn std::io::Read) -> anyhow::Result<i64>,
 }
 
 impl Day {
     pub fn unsolved() -> Self {
-        fn no_solution(_: &mut dyn std::io::Read) -> anyhow::Result<()> {
+        fn no_solution(_: &mut dyn std::io::Read) -> anyhow::Result<i64> {
             anyhow::bail!("no solution for this day");
         }
         Self {
@@ -73,7 +73,8 @@ pub fn aoc_main(days: &[Day]) -> anyhow::Result<()> {
         };
         let mut input = std::fs::File::open(opt.input)?;
         let before = Instant::now();
-        runner(&mut input)?;
+        let output = runner(&mut input)?;
+        println!("{}", output);
         let duration = before.elapsed();
         eprintln!("Took {:.3} ms", duration.as_secs_f64() * 1000.0);
         Ok(())
