@@ -35,7 +35,7 @@ pub fn part2(input: &mut dyn Read) -> anyhow::Result<i64> {
             counts.count(num);
         }
         let mcb = counts.most_common_bit(bit).unwrap_or(true);
-        o2_candidates.retain(|num| num.digits[bit] == mcb);
+        o2_candidates.retain(|num| num.bit(bit) == mcb);
         bit += 1;
     }
 
@@ -47,7 +47,7 @@ pub fn part2(input: &mut dyn Read) -> anyhow::Result<i64> {
             counts.count(num);
         }
         let lcb = !counts.most_common_bit(bit).unwrap_or(true);
-        co2_candidates.retain(|num| num.digits[bit] == lcb);
+        co2_candidates.retain(|num| num.bit(bit) == lcb);
         bit += 1;
     }
 
@@ -59,21 +59,26 @@ pub fn part2(input: &mut dyn Read) -> anyhow::Result<i64> {
     Ok((o2 * co2) as i64)
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 struct Binary {
-    digits: Vec<bool>,
+    value: u32,
+    len: u32,
 }
 
 impl Binary {
+    pub fn bit(self, index: usize) -> bool {
+        self.value & (1 << (self.len - 1 - index as u32)) != 0
+    }
+
     pub fn to_u64(&self) -> u64 {
-        let mut acc = 0;
-        for d in self.digits.iter() {
-            acc *= 2;
-            if *d {
-                acc += 1;
-            }
+        self.value as u64
+    }
+
+    pub fn digits(&self) -> DigitIter {
+        DigitIter {
+            index: self.len,
+            value: self.value,
         }
-        acc
     }
 }
 
@@ -81,43 +86,70 @@ impl FromStr for Binary {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut digits = Vec::new();
+        let mut len = 0;
+        let mut value = 0;
         for ch in s.chars() {
-            match ch {
-                '0' => digits.push(false),
-                '1' => digits.push(true),
-                _ => return Err(()),
+            len += 1;
+            value <<= 1;
+            if ch == '1' {
+                value |= 1;
+            } else if ch != '0' {
+                return Err(())
             }
         }
-        Ok(Binary { digits })
+        Ok(Binary { len, value })
+    }
+}
+
+struct DigitIter {
+    index: u32,
+    value: u32,
+}
+
+impl Iterator for DigitIter {
+    type Item = bool;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index > 0 {
+            self.index -= 1;
+            Some(self.value & (1 << self.index) != 0)
+        } else {
+            None
+        }
     }
 }
 
 struct Counts {
     num_digits: usize,
     zeros: Vec<u32>,
-    ones: Vec<u32>,
+    total: u32,
 }
 
 impl Counts {
     pub fn new() -> Self {
         Self {
             num_digits: 0,
-            ones: Vec::new(),
             zeros: Vec::new(),
+            total: 0,
         }
     }
 
-    pub fn count(&mut self, num: &Binary) {
-        let num_digits = num.digits.len();
-        self.num_digits = num_digits.max(self.num_digits);
-        self.zeros.resize(self.num_digits, 0);
-        self.ones.resize(self.num_digits, 0);
+    pub fn zeros_at(&self, index: usize) -> u32 {
+        self.zeros[index]
+    }
 
-        for (i, d) in num.digits.iter().enumerate() {
-            if *d {
-                self.ones[i] += 1;
-            } else {
+    pub fn ones_at(&self, index: usize) -> u32 {
+        self.total - self.zeros[index]
+    }
+
+    pub fn count(&mut self, num: &Binary) {
+        let num_digits = num.len as usize;
+        self.num_digits = num_digits.max(self.num_digits);
+        self.total += 1;
+        self.zeros.resize(self.num_digits, 0);
+
+        for (i, d) in num.digits().enumerate() {
+            if ! d {
                 self.zeros[i] += 1;
             }
         }
@@ -144,7 +176,7 @@ impl Counts {
     }
 
     pub fn most_common_bit(&self, index: usize) -> Option<bool> {
-        match self.zeros[index].cmp(&self.ones[index]) {
+        match self.zeros_at(index).cmp(&self.ones_at(index)) {
             Ordering::Less => Some(true),
             Ordering::Equal => None,
             Ordering::Greater => Some(false),

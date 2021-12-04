@@ -114,12 +114,16 @@ macro_rules! test_day {
     ($day:expr, $name:expr, $part1:expr, $part2:expr) => {
         #[cfg(test)]
         mod test {
+            const INPUT: &[u8] = crate::include_input!($name);
+
             #[test]
-            fn input() {
-                let data = crate::include_input!($name);
-                let output1 = ($day.part1)(&mut data.as_ref()).expect("part 1 should work");
+            fn part1() {
+                let output1 = ($day.part1)(&mut INPUT.as_ref()).expect("part 1 should work");
                 assert_eq!(output1, $part1, "part 1");
-                let output2 = ($day.part2)(&mut data.as_ref()).expect("part 2 should work");
+            }
+            #[test]
+            fn part2() {
+                let output2 = ($day.part2)(&mut INPUT.as_ref()).expect("part 2 should work");
                 assert_eq!(output2, $part2, "part 2");
             }
         }
