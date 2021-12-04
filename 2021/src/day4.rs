@@ -111,45 +111,56 @@ const BOARD_WIDTH: usize = 5;
 struct Board {
     /// row-major representation of the board
     numbers: Vec<u32>,
-    marked: Vec<bool>,
+    marked: u32,
 }
 
 impl Board {
     fn new(numbers: Vec<u32>) -> Board {
-        Board {
-            marked: vec![false; numbers.len()],
-            numbers,
-        }
+        // Make sure our board actually fits in a u32
+        const _: () = assert!(std::mem::size_of::<u32>() <= BOARD_WIDTH * BOARD_WIDTH);
+        Board { numbers, marked: 0 }
     }
 
     fn won(&self) -> bool {
-        for start in 0..BOARD_WIDTH {
-            let row = start * BOARD_WIDTH..(start + 1) * BOARD_WIDTH;
-            if row.into_iter().all(|i| self.marked[i]) {
-                return true;
-            }
-            let col = (0..BOARD_WIDTH).map(|r| start + r * BOARD_WIDTH);
-            if col.into_iter().all(|i| self.marked[i]) {
-                return true;
-            }
+        const WINNING: &'static [u32] = &[
+            // Rows
+            0b0000000000000000000011111,
+            0b0000000000000001111100000,
+            0b0000000000111110000000000,
+            0b0000011111000000000000000,
+            0b1111100000000000000000000,
+            // Columns
+            0b0000100001000010000100001,
+            0b0001000010000100001000010,
+            0b0010000100001000010000100,
+            0b0100001000010000100001000,
+            0b1000010000100001000010000,
+        ];
+        for mask in WINNING {
+            if self.marked & mask == *mask { return true; }
         }
         false
     }
 
     fn mark(&mut self, number: u32) {
         if let Some(pos) = self.numbers.iter().position(|x| *x == number) {
-            self.marked[pos] = true;
+            self.marked |= 1 << pos;
         }
     }
 
     fn sum_unmarked(&self) -> u32 {
         self.numbers
             .iter()
-            .zip(self.marked.iter())
-            .filter_map(|(n, m)| if *m { None } else { Some(*n) })
+            .enumerate()
+            .filter_map(|(index, num)| {
+                if self.marked & (1 << index) == 0 {
+                    Some(*num)
+                } else {
+                    None
+                }
+            })
             .sum()
     }
 }
-
 
 crate::test_day!(crate::day4::RUN, "day4", 72770, 13912);
