@@ -1,61 +1,77 @@
-use crate::{Day, FileParser};
+use nom::character::complete::one_of;
+use nom::combinator::map;
+use nom::multi::{fold_many0, many0};
+use nom::IResult;
+use nom::sequence::terminated;
+
+use crate::{parsers, Day};
 use std::cmp::Ordering;
-use std::str::FromStr;
 
 pub static RUN: Day = Day { part1, part2 };
 
 pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
-    let mut parser = FileParser::new(input);
-    let mut counts = Counts::new();
-
-    for num in parser.iter_parse::<Binary>() {
-        counts.count(&num);
-    }
-
-    parser.finish()?;
-
-    let (epsilon, gamma) = counts.epsilon_gamma();
-
-    log::debug!("epsilon: {}, gamma: {}", epsilon, gamma);
-    Ok((epsilon * gamma) as i64)
+    parsers::parse(
+        map(
+            fold_many0(
+                terminated(Binary::parse, parsers::newline),
+                || Counts::new(),
+                |mut counts, num| {
+                    counts.count(&num);
+                    counts
+                }
+            ),
+            |counts| {
+                let (epsilon, gamma) = counts.epsilon_gamma();
+                log::debug!("epsilon: {}, gamma: {}", epsilon, gamma);
+                (epsilon * gamma) as i64
+            }
+        ),
+        input
+    )
 }
 
 pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
-    let mut parser = FileParser::new(input);
-    let nums: Vec<_> = parser.iter_parse::<Binary>().collect();
+    parsers::parse(
+        map(
+            many0(
+                terminated(Binary::parse, parsers::newline),
+            ),
+            |nums| {
 
-    parser.finish()?;
+                let mut o2_candidates = nums.clone();
+                let mut bit = 0;
+                while o2_candidates.len() > 1 {
+                    let mut counts = Counts::new();
+                    for num in o2_candidates.iter() {
+                        counts.count(num);
+                    }
+                    let mcb = counts.most_common_bit(bit).unwrap_or(true);
+                    o2_candidates.retain(|num| num.bit(bit) == mcb);
+                    bit += 1;
+                }
 
-    let mut o2_candidates = nums.clone();
-    let mut bit = 0;
-    while o2_candidates.len() > 1 {
-        let mut counts = Counts::new();
-        for num in o2_candidates.iter() {
-            counts.count(num);
-        }
-        let mcb = counts.most_common_bit(bit).unwrap_or(true);
-        o2_candidates.retain(|num| num.bit(bit) == mcb);
-        bit += 1;
-    }
+                let mut co2_candidates = nums;
+                let mut bit = 0;
+                while co2_candidates.len() > 1 {
+                    let mut counts = Counts::new();
+                    for num in co2_candidates.iter() {
+                        counts.count(num);
+                    }
+                    let lcb = !counts.most_common_bit(bit).unwrap_or(true);
+                    co2_candidates.retain(|num| num.bit(bit) == lcb);
+                    bit += 1;
+                }
 
-    let mut co2_candidates = nums;
-    let mut bit = 0;
-    while co2_candidates.len() > 1 {
-        let mut counts = Counts::new();
-        for num in co2_candidates.iter() {
-            counts.count(num);
-        }
-        let lcb = !counts.most_common_bit(bit).unwrap_or(true);
-        co2_candidates.retain(|num| num.bit(bit) == lcb);
-        bit += 1;
-    }
+                log::debug!("{:?}", o2_candidates[0]);
+                let o2 = o2_candidates[0].to_u64();
+                let co2 = co2_candidates[0].to_u64();
 
-    log::debug!("{:?}", o2_candidates[0]);
-    let o2 = o2_candidates[0].to_u64();
-    let co2 = co2_candidates[0].to_u64();
-
-    log::debug!("o2: {}, co2: {}", o2, co2);
-    Ok((o2 * co2) as i64)
+                log::debug!("o2: {}, co2: {}", o2, co2);
+                (o2 * co2) as i64
+            }
+        ),
+        input
+    )
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -65,6 +81,26 @@ struct Binary {
 }
 
 impl Binary {
+    pub fn parse(input: &[u8]) -> IResult<&[u8], Binary> {
+        map(
+            fold_many0(
+                one_of(b"01".as_ref()),
+                || (0, 0),
+                |(len, value), digit| {
+                    (
+                        len + 1,
+                        if digit == '1' {
+                            (value << 1) | 1
+                        } else {
+                            value << 1
+                        },
+                    )
+                },
+            ),
+            |(len, value)| Binary { len, value },
+        )(input)
+    }
+
     pub fn bit(self, index: usize) -> bool {
         self.value & (1 << (self.len - 1 - index as u32)) != 0
     }
@@ -80,26 +116,6 @@ impl Binary {
         }
     }
 }
-
-impl FromStr for Binary {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut len = 0;
-        let mut value = 0;
-        for ch in s.chars() {
-            len += 1;
-            value <<= 1;
-            if ch == '1' {
-                value |= 1;
-            } else if ch != '0' {
-                return Err(())
-            }
-        }
-        Ok(Binary { len, value })
-    }
-}
-
 struct DigitIter {
     index: u32,
     value: u32,
@@ -148,7 +164,7 @@ impl Counts {
         self.zeros.resize(self.num_digits, 0);
 
         for (i, d) in num.digits().enumerate() {
-            if ! d {
+            if !d {
                 self.zeros[i] += 1;
             }
         }
