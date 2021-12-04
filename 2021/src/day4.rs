@@ -1,8 +1,7 @@
 use anyhow::bail;
 use nom::{
     bytes::{complete::take_while, streaming::tag},
-    character::complete::digit1,
-    combinator::{map, map_res},
+    combinator::map,
     multi::{many0, many_m_n, separated_list0},
     sequence::{pair, terminated},
     IResult,
@@ -62,20 +61,13 @@ struct Bingo {
     boards: Vec<Board>,
 }
 
-fn p_u32(input: &[u8]) -> IResult<&[u8], u32> {
-    map_res(digit1, |num_bytes| {
-        let num_str = std::str::from_utf8(num_bytes).expect("digits should always be valid UTF8");
-        u32::from_str_radix(num_str, 10)
-    })(input)
-}
-
 fn p_board(input: &[u8]) -> IResult<&[u8], Board> {
     const BOARD_SIZE: usize = BOARD_WIDTH * BOARD_WIDTH;
     map(
         many_m_n(
             BOARD_SIZE,
             BOARD_SIZE,
-            terminated(p_u32, take_while(|x: u8| x.is_ascii_whitespace())),
+            terminated(parsers::u32, take_while(|x: u8| x.is_ascii_whitespace())),
         ),
         |numbers| Board::new(numbers),
     )(input)
@@ -86,7 +78,7 @@ fn p_bingo(input: &[u8]) -> IResult<&[u8], Bingo> {
         pair(
             // first line holds the numbers to be drawn
             terminated(
-                separated_list0(tag(","), p_u32),
+                separated_list0(tag(","), parsers::u32),
                 take_while(|x: u8| x.is_ascii_whitespace()),
             ),
             // followed by many boards

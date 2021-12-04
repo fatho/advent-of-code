@@ -3,17 +3,15 @@
 use nom::{
     bytes::complete::tag,
     character::complete::digit1,
-    combinator::{map, map_res},
+    combinator::map,
     IResult,
 };
 
 macro_rules! parse_int {
     ($name:ident) => {
         pub fn $name(input: &[u8]) -> IResult<&[u8], $name> {
-            map_res(digit1, |num_bytes| {
-                let num_str =
-                    std::str::from_utf8(num_bytes).expect("digits should always be valid UTF8");
-                <$name>::from_str_radix(num_str, 10)
+            map(digit1, |digits: &[u8]| {
+                digits.iter().map(|d| d - b'0').fold(0, |acc, d| acc * 10 + d as $name)
             })(input)
         }
     };
