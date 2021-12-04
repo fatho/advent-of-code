@@ -1,7 +1,7 @@
 use nom::branch::alt;
-use nom::bytes::complete::tag;
+use nom::bytes::complete::{tag, take_while};
 use nom::combinator::{flat_map, map, value};
-use nom::multi::fold_many0;
+use nom::multi::{fold_many0, many0};
 use nom::sequence::terminated;
 use nom::IResult;
 
@@ -10,29 +10,33 @@ use std::cmp::Ordering;
 
 pub static RUN: Day = Day { part1, part2 };
 
-pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
+pub fn part1<'a>(input: &'a [u8]) -> anyhow::Result<i64> {
     parsers::parse(
-        flat_map(terminated(BinaryLen::parse, parsers::newline), |first| {
+        flat_map(
             map(
-                fold_many0(
-                    terminated(parse_bin, parsers::newline),
-                    move || {
-                        let mut counts = Counts::new(first.len as usize);
-                        counts.count(first.value);
-                        counts
+                terminated(many0(parse_bin_digit), parsers::newline),
+                |ones| Counts { ones, total: 1 },
+            ),
+            |counts| {
+                map(
+                    fold_many0(
+                        terminated(take_while(|b| b == b'0' || b == b'1'), parsers::newline),
+                        move || counts.clone(),
+                        |mut counts, bin| {
+                            for (i, d) in bin.iter().enumerate() {
+                                counts.ones[i] += (d - b'0') as u32;
+                            }
+                            counts.total += 1;
+                            counts
+                        },
+                    ),
+                    |counts| {
+                        let (epsilon, gamma) = counts.epsilon_gamma();
+                        (epsilon * gamma) as i64
                     },
-                    |mut counts, num| {
-                        counts.count(num);
-                        counts
-                    },
-                ),
-                |counts| {
-                    let (epsilon, gamma) = counts.epsilon_gamma();
-                    log::debug!("epsilon: {}, gamma: {}", epsilon, gamma);
-                    (epsilon * gamma) as i64
-                },
-            )
-        }),
+                )
+            },
+        ),
         input,
     )
 }
@@ -85,68 +89,37 @@ fn prune_candidates(candidates: &mut Vec<u32>, num_bits: u32, most: bool) {
     }
 }
 
-
 #[derive(Debug, Clone, Default)]
 struct Counts {
-    num_digits: usize,
-    zeros: Vec<u32>,
+    ones: Vec<u32>,
     total: u32,
 }
 
 impl Counts {
-    pub fn new(num_digits: usize) -> Self {
-        Self {
-            num_digits,
-            zeros: vec![0; num_digits],
-            total: 0,
-        }
-    }
-
     pub fn zeros_at(&self, index: usize) -> u32 {
-        self.zeros[index]
+        self.total - self.ones[index]
     }
 
     pub fn ones_at(&self, index: usize) -> u32 {
-        self.total - self.zeros[index]
-    }
-
-    pub fn count(&mut self, mut num: u32) {
-        self.total += 1;
-        for i in 0..self.num_digits {
-            if num & 1 == 0 {
-                self.zeros[i] += 1;
-            }
-            num >>= 1;
-        }
-    }
-
-    pub fn uncount(&mut self, mut num: u32) {
-        self.total -= 1;
-
-        for i in 0..self.num_digits {
-            if num & 1 == 0 {
-                self.zeros[i] -= 1;
-            }
-            num >>= 1;
-        }
+        self.ones[index]
     }
 
     pub fn epsilon_gamma(&self) -> (u64, u64) {
         let mut epsilon = 0;
         let mut gamma = 0;
-        let mut mask = 1;
-        for i in 0..self.num_digits {
+        for i in 0..self.ones.len() {
+            epsilon <<= 1;
+            gamma <<= 1;
             match self.most_common_bit(i) {
                 Some(bit) => {
                     if bit {
-                        gamma |= mask;
+                        gamma |= 1;
                     } else {
-                        epsilon |= mask;
+                        epsilon |= 1;
                     }
                 }
                 None => log::error!("tie at bit {}", i),
             }
-            mask <<= 1;
         }
         (epsilon, gamma)
     }
