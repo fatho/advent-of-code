@@ -43,25 +43,19 @@ pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
             map(
                 fold_many0(
                     terminated(parse_bin, parsers::newline),
-                    move || {
-                        let nums = vec![first.value];
-                        let mut counts = Counts::new(first.len as usize);
-                        counts.count(first.value);
-                        (counts, nums)
-                    },
-                    |(mut counts, mut nums), num| {
-                        counts.count(num);
+                    move || vec![first.value],
+                    |mut nums, num| {
                         nums.push(num);
-                        (counts, nums)
+                        nums
                     },
                 ),
-                |(counts, nums)| {
+                move |nums| {
                     // determine o2 number
                     let mut o2_candidates = nums.clone();
                     let mut co2_candidates = nums;
 
-                    prune_candidates(&mut o2_candidates, counts.clone(), true);
-                    prune_candidates(&mut co2_candidates, counts.clone(), false);
+                    prune_candidates(&mut o2_candidates, first.len, true);
+                    prune_candidates(&mut co2_candidates, first.len, false);
 
                     let o2 = o2_candidates[0];
                     let co2 = co2_candidates[0];
@@ -74,28 +68,23 @@ pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
     )
 }
 
-fn prune_candidates(candidates: &mut Vec<u32>, mut counts: Counts, most: bool) {
-    let mut bit = counts.num_digits;
+fn prune_candidates(candidates: &mut Vec<u32>, num_bits: u32, most: bool) {
+    let mut bit = num_bits;
     while candidates.len() > 1 {
         bit -= 1;
-        let keep_when = counts.most_common_bit(bit).unwrap_or(true) == most;
-        candidates.retain(|num| {
-            let keep = (num & (1 << bit) != 0) == keep_when;
-            if !keep {
-                counts.uncount(*num);
-            }
-            keep
-        });
+
+        let zeros: u32 = candidates
+            .iter()
+            .map(|x| (x & (1 << bit) == 0) as u32)
+            .sum();
+
+        let most_common = zeros <= (candidates.len() as u32 - zeros);
+
+        let keep_when = most_common == most;
+        candidates.retain(|num| (num & (1 << bit) != 0) == keep_when);
     }
 }
 
-pub fn parse_bin(input: &[u8]) -> IResult<&[u8], u32> {
-    fold_many0(
-        alt((value(0, tag(b"0")), value(1, tag(b"1")))),
-        || 0,
-        |value, digit| (value << 1) | digit,
-    )(input)
-}
 
 #[derive(Debug, Clone, Default)]
 struct Counts {
@@ -188,6 +177,18 @@ impl BinaryLen {
             |(len, value)| BinaryLen { len, value },
         )(input)
     }
+}
+
+pub fn parse_bin_digit(input: &[u8]) -> IResult<&[u8], u32> {
+    alt((value(0, tag(b"0")), value(1, tag(b"1"))))(input)
+}
+
+pub fn parse_bin(input: &[u8]) -> IResult<&[u8], u32> {
+    fold_many0(
+        alt((value(0, tag(b"0")), value(1, tag(b"1")))),
+        || 0,
+        |value, digit| (value << 1) | digit,
+    )(input)
 }
 
 crate::test_day!(crate::day3::RUN, "day3", 4147524, 3570354);
