@@ -151,3 +151,5 @@ impl Counts {
         }
     }
 }
+
+crate::test_day!(RUN, "day3", 4147524, 3570354);

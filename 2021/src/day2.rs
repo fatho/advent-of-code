@@ -79,3 +79,5 @@ impl FromStr for CtrlCmd {
         })
     }
 }
+
+crate::test_day!(RUN, "day2", 1507611, 1880593125);

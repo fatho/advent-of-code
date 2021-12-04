@@ -44,3 +44,5 @@ fn day1_impl(input: &mut dyn Read, window_size: usize) -> anyhow::Result<i64> {
     parser.finish()?;
     Ok(increases as i64)
 }
+
+crate::test_day!(RUN, "day1", 1527, 1575);

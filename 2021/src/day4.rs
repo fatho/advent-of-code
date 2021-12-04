@@ -150,3 +150,6 @@ impl Board {
             .sum()
     }
 }
+
+
+crate::test_day!(RUN, "day4", 72770, 13912);
