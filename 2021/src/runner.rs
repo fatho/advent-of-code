@@ -1,4 +1,4 @@
-use std::{str::FromStr, path::PathBuf, fmt, time::Instant};
+use std::{fmt, path::PathBuf, str::FromStr, time::Instant};
 
 use structopt::StructOpt;
 
@@ -30,7 +30,10 @@ impl FromStr for Part {
 }
 
 #[derive(Debug, StructOpt)]
-#[structopt(name = "advent-of-code", about = "Solutions for Advent of Code puzzles.")]
+#[structopt(
+    name = "advent-of-code",
+    about = "Solutions for Advent of Code puzzles."
+)]
 pub struct AocOpt {
     #[structopt(short, long)]
     day: i32,
@@ -43,10 +46,10 @@ pub struct AocOpt {
     input: PathBuf,
 }
 
-
+#[derive(Clone, Copy)]
 pub struct Day {
-    pub first: fn(&mut dyn std::io::Read) -> anyhow::Result<()>,
-    pub second: fn(&mut dyn std::io::Read) -> anyhow::Result<()>,
+    pub part1: fn(&mut dyn std::io::Read) -> anyhow::Result<()>,
+    pub part2: fn(&mut dyn std::io::Read) -> anyhow::Result<()>,
 }
 
 impl Day {
@@ -55,8 +58,8 @@ impl Day {
             anyhow::bail!("no solution for this day");
         }
         Self {
-            first: no_solution,
-            second: no_solution,
+            part1: no_solution,
+            part2: no_solution,
         }
     }
 }
@@ -65,8 +68,8 @@ pub fn aoc_main(days: &[Day]) -> anyhow::Result<()> {
     let opt = AocOpt::from_args();
     if let Some(day) = days.get((opt.day - 1) as usize) {
         let runner = match opt.part {
-            Part::One => day.first,
-            Part::Two => day.second,
+            Part::One => day.part1,
+            Part::Two => day.part2,
         };
         let mut input = std::fs::File::open(opt.input)?;
         let before = Instant::now();

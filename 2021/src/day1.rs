@@ -1,8 +1,10 @@
 use anyhow::Context;
 
-use crate::FileParser;
+use crate::{Day, FileParser};
 use std::collections::VecDeque;
 use std::io::Read;
+
+pub static RUN: Day = Day { part1, part2 };
 
 pub fn part1(input: &mut dyn Read) -> anyhow::Result<()> {
     day1_impl(input, 1)
