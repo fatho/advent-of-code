@@ -1,10 +1,9 @@
 //! Various nom parsers that are often useful
 
 use nom::{
-    bytes::streaming::tag,
+    bytes::complete::tag,
     character::complete::digit1,
     combinator::{map, map_res},
-    error::ParseError,
     IResult,
 };
 
@@ -25,15 +24,30 @@ parse_int!(i64);
 parse_int!(u32);
 parse_int!(u64);
 
-pub fn parse<'a, O, E: ParseError<&'a [u8]>>(
-    mut parser: impl FnMut(&'a [u8]) -> IResult<&'a [u8], O, E>,
+pub fn parse<'a, O>(
+    mut parser: impl FnMut(&'a [u8]) -> IResult<&'a [u8], O, nom::error::Error<&[u8]>>,
     input: &'a [u8],
 ) -> anyhow::Result<O> {
-    let (rest, output) = parser(input).map_err(|_| anyhow::anyhow!("no parse"))?;
+    let (rest, output) = parser(input).map_err(|err| match err {
+        nom::Err::Incomplete(needed) => anyhow::anyhow!("needs more input: {:?}", needed),
+        nom::Err::Error(inner) => anyhow::anyhow!(
+            "error ({:?}): {}",
+            inner.code,
+            String::from_utf8_lossy(inner.input)
+        ),
+        nom::Err::Failure(inner) => anyhow::anyhow!(
+            "failure ({:?}): {}",
+            inner.code,
+            String::from_utf8_lossy(inner.input)
+        ),
+    })?;
     if rest.is_empty() {
         Ok(output)
     } else {
-        Err(anyhow::anyhow!("parser did not consume whole input"))
+        Err(anyhow::anyhow!(
+            "parser did not consume whole input, remaining:\n{}",
+            String::from_utf8_lossy(rest)
+        ))
     }
 }
 

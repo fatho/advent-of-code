@@ -1,52 +1,67 @@
-use crate::{Day, FileParser};
-use std::str::FromStr;
+use nom::{
+    branch::alt,
+    bytes::complete::tag,
+    combinator::{map, value},
+    multi::fold_many0,
+    sequence::{terminated, separated_pair},
+    IResult,
+};
+
+use crate::{parsers, Day};
 
 pub static RUN: Day = Day { part1, part2 };
 
 pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
-    let mut parser = FileParser::new(input);
-
-    let mut depth = 0;
-    let mut x = 0;
-
-    for cmd in parser.iter_parse::<CtrlCmd>() {
-        match cmd.dir {
-            CtrlDir::Up => depth -= cmd.amount,
-            CtrlDir::Down => depth += cmd.amount,
-            CtrlDir::Forward => x += cmd.amount,
-        }
-    }
-
-    parser.finish()?;
-
-    Ok((depth * x) as i64)
+    parsers::parse(
+        map(
+            fold_many0(
+                terminated(CtrlCmd::parse, parsers::newline),
+                || (0, 0),
+                |(depth, x), cmd| match cmd.dir {
+                    CtrlDir::Up => (depth - cmd.amount, x),
+                    CtrlDir::Down => (depth + cmd.amount, x),
+                    CtrlDir::Forward => (depth, x + cmd.amount),
+                },
+            ),
+            |(depth, x)| depth * x,
+        ),
+        input,
+    )
 }
 
 pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
-    let mut parser = FileParser::new(input);
-
-    let mut depth = 0;
-    let mut aim = 0;
-    let mut x = 0;
-
-    for cmd in parser.iter_parse::<CtrlCmd>() {
-        match cmd.dir {
-            CtrlDir::Up => aim -= cmd.amount,
-            CtrlDir::Down => aim += cmd.amount,
-            CtrlDir::Forward => {
-                x += cmd.amount;
-                depth += aim * cmd.amount;
-            }
-        }
-    }
-    parser.finish()?;
-    Ok((depth * x) as i64)
+    parsers::parse(
+        map(
+            fold_many0(
+                terminated(CtrlCmd::parse, parsers::newline),
+                || (0, 0, 0),
+                |(aim, depth, x), cmd| match cmd.dir {
+                    CtrlDir::Up => (aim - cmd.amount, depth, x),
+                    CtrlDir::Down => (aim + cmd.amount, depth, x),
+                    CtrlDir::Forward => (aim, depth + aim * cmd.amount, x + cmd.amount),
+                },
+            ),
+            |(_, depth, x)| depth * x,
+        ),
+        input,
+    )
 }
 
+#[derive(Debug, Clone, Copy)]
 enum CtrlDir {
     Up,
     Down,
     Forward,
+}
+
+impl CtrlDir {
+    fn parse(input: &[u8]) -> IResult<&[u8], CtrlDir> {
+        alt((
+            value(CtrlDir::Up, tag(b"up")),
+            value(CtrlDir::Down, tag(b"down")),
+            value(CtrlDir::Forward, tag(b"forward")),
+        ))(input)
+    }
 }
 
 struct CtrlCmd {
@@ -54,28 +69,11 @@ struct CtrlCmd {
     amount: i64,
 }
 
-impl FromStr for CtrlDir {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "up" => Ok(CtrlDir::Up),
-            "down" => Ok(CtrlDir::Down),
-            "forward" => Ok(CtrlDir::Forward),
-            _ => Err(()),
-        }
-    }
-}
-
-impl FromStr for CtrlCmd {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (cmd, amount) = s.split_once(' ').ok_or(())?;
-        Ok(CtrlCmd {
-            dir: cmd.parse().map_err(|_| ())?,
-            amount: amount.parse().map_err(|_| ())?,
-        })
+impl CtrlCmd {
+    fn parse(input: &[u8]) -> IResult<&[u8], CtrlCmd> {
+        map(separated_pair(CtrlDir::parse, tag(b" "), parsers::i64), |(dir, amount)| {
+            CtrlCmd { dir, amount }
+        })(input)
     }
 }
 
