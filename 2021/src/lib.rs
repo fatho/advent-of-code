@@ -102,17 +102,26 @@ where
     }
 }
 
+#[macro_export]
+macro_rules! include_input {
+    ($day:expr) => {
+        include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/inputs/", $day, "/input.txt"))
+    };
+}
 
 #[macro_export]
 macro_rules! test_day {
     ($day:expr, $name:expr, $part1:expr, $part2:expr) => {
-        #[test]
-        fn test() {
-            let data = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/inputs/", $name, "/input.txt"));
-            let output1 = ($day.part1)(&mut data.as_ref()).expect("part 1 should work");
-            assert_eq!(output1, $part1, "part 1");
-            let output2 = ($day.part2)(&mut data.as_ref()).expect("part 2 should work");
-            assert_eq!(output2, $part2, "part 2");
+        #[cfg(test)]
+        mod test {
+            #[test]
+            fn input() {
+                let data = crate::include_input!($name);
+                let output1 = ($day.part1)(&mut data.as_ref()).expect("part 1 should work");
+                assert_eq!(output1, $part1, "part 1");
+                let output2 = ($day.part2)(&mut data.as_ref()).expect("part 2 should work");
+                assert_eq!(output2, $part2, "part 2");
+            }
         }
     };
 }

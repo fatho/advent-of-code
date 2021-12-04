@@ -152,4 +152,4 @@ impl Board {
 }
 
 
-crate::test_day!(RUN, "day4", 72770, 13912);
+crate::test_day!(crate::day4::RUN, "day4", 72770, 13912);

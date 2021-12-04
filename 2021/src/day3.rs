@@ -17,7 +17,7 @@ pub fn part1(input: &mut dyn Read) -> anyhow::Result<i64> {
 
     let (epsilon, gamma) = counts.epsilon_gamma();
 
-    eprintln!("epsilon: {}, gamma: {}", epsilon, gamma);
+    log::debug!("epsilon: {}, gamma: {}", epsilon, gamma);
     Ok((epsilon * gamma) as i64)
 }
 
@@ -51,11 +51,11 @@ pub fn part2(input: &mut dyn Read) -> anyhow::Result<i64> {
         bit += 1;
     }
 
-    eprintln!("{:?}", o2_candidates[0]);
+    log::debug!("{:?}", o2_candidates[0]);
     let o2 = o2_candidates[0].to_u64();
     let co2 = co2_candidates[0].to_u64();
 
-    eprintln!("o2: {}, co2: {}", o2, co2);
+    log::debug!("o2: {}, co2: {}", o2, co2);
     Ok((o2 * co2) as i64)
 }
 
@@ -137,7 +137,7 @@ impl Counts {
                         epsilon += 1;
                     }
                 }
-                None => eprintln!("tie at bit {}", i),
+                None => log::error!("tie at bit {}", i),
             }
         }
         (epsilon, gamma)
@@ -152,4 +152,4 @@ impl Counts {
     }
 }
 
-crate::test_day!(RUN, "day3", 4147524, 3570354);
+crate::test_day!(crate::day3::RUN, "day3", 4147524, 3570354);

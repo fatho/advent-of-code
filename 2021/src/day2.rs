@@ -80,4 +80,4 @@ impl FromStr for CtrlCmd {
     }
 }
 
-crate::test_day!(RUN, "day2", 1507611, 1880593125);
+crate::test_day!(crate::day2::RUN, "day2", 1507611, 1880593125);
