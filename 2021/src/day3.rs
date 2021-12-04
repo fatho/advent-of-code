@@ -1,7 +1,6 @@
-use nom::branch::alt;
-use nom::bytes::complete::{tag, take_while};
-use nom::combinator::{flat_map, map, value};
-use nom::multi::{fold_many0, many0};
+use nom::bytes::complete::{take_while};
+use nom::combinator::{flat_map, map};
+use nom::multi::{fold_many0};
 use nom::sequence::terminated;
 use nom::IResult;
 
@@ -14,8 +13,11 @@ pub fn part1<'a>(input: &'a [u8]) -> anyhow::Result<i64> {
     parsers::parse(
         flat_map(
             map(
-                terminated(many0(parse_bin_digit), parsers::newline),
-                |ones| Counts { ones, total: 1 },
+                terminated(take_while(|b| b == b'0' || b == b'1'), parsers::newline),
+                |digits| Counts {
+                    ones: digits.iter().map(|d| (d - b'0') as u32).collect(),
+                    total: 1,
+                },
             ),
             |counts| {
                 map(
@@ -141,27 +143,23 @@ struct BinaryLen {
 
 impl BinaryLen {
     pub fn parse(input: &[u8]) -> IResult<&[u8], BinaryLen> {
-        map(
-            fold_many0(
-                alt((value(0, tag(b"0")), value(1, tag(b"1")))),
-                || (0, 0),
-                |(len, value), digit| (len + 1, (value << 1) | digit),
-            ),
-            |(len, value)| BinaryLen { len, value },
-        )(input)
+        map(take_while(|b| b == b'0' || b == b'1'), |digits: &[u8]| BinaryLen {
+            len: digits.len() as u32,
+            value: digits
+                .iter()
+                .map(|d| d - b'0')
+                .fold(0, |acc, digit| acc << 1 | digit as u32)
+        })(input)
     }
 }
 
-pub fn parse_bin_digit(input: &[u8]) -> IResult<&[u8], u32> {
-    alt((value(0, tag(b"0")), value(1, tag(b"1"))))(input)
-}
-
 pub fn parse_bin(input: &[u8]) -> IResult<&[u8], u32> {
-    fold_many0(
-        alt((value(0, tag(b"0")), value(1, tag(b"1")))),
-        || 0,
-        |value, digit| (value << 1) | digit,
-    )(input)
+    map(take_while(|b| b == b'0' || b == b'1'), |digits: &[u8]| {
+        digits
+            .iter()
+            .map(|d| d - b'0')
+            .fold(0, |acc, digit| acc << 1 | digit as u32)
+    })(input)
 }
 
 crate::test_day!(crate::day3::RUN, "day3", 4147524, 3570354);
