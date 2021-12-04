@@ -133,6 +133,47 @@ impl Board {
         false
     }
 
+    #[cfg(target_feature = "sse2")]
+    fn mark(&mut self, number: u32) {
+        // number of entries to handle in simd-loop
+        let simd_len = self.numbers.len() & !0b111;
+        unsafe {
+            use std::arch::x86_64::*;
+            // put key four times into the SIMD vector
+            let keys = _mm_set1_epi32(number as i32);
+
+            let mut off = 0;
+            while off < simd_len {
+                // load 8 values into two SIMD vector
+                let vals1 = _mm_loadu_si128(self.numbers[off..].as_ptr() as *const __m128i);
+                let vals2 = _mm_loadu_si128(self.numbers[off + 4..].as_ptr() as *const __m128i);
+
+                // cmp{1,2} will be either all 0 or all 1 in each of the slots indicating whether
+                // there was a match at that index.
+                let cmp1 = _mm_cmpeq_epi32(vals1, keys);
+                let cmp2 = _mm_cmpeq_epi32(vals2, keys);
+
+                // shrink two vectors of 4 32 bit numbers into one vector of 8 16 bit numbers
+                let tmp = _mm_packs_epi32(cmp1, cmp2);
+                // extract the most significant bit of each 8 bit entry in the vector
+                let mask = _mm_movemask_epi8(tmp) as u32;
+
+                if mask != 0 {
+                    // divide by two since each 16 bit mask from above got counted twice
+                    let pos = off + (mask.trailing_zeros() / 2) as usize;
+                    self.marked |= 1 << pos;
+                    return;
+                }
+                off += 8;
+            }
+        }
+
+        if let Some(pos) = self.numbers[simd_len..].iter().position(|x| *x == number) {
+            self.marked |= 1 << (simd_len + pos);
+        }
+    }
+
+    #[cfg(not(target_feature = "sse2"))]
     fn mark(&mut self, number: u32) {
         if let Some(pos) = self.numbers.iter().position(|x| *x == number) {
             self.marked |= 1 << pos;
@@ -143,10 +184,7 @@ impl Board {
         self.numbers
             .iter()
             .fold((self.marked, 0), |(marked, sum), num| {
-                (
-                    marked >> 1,
-                    sum + (1 - (marked & 1)) * num
-                )
+                (marked >> 1, sum + (1 - (marked & 1)) * num)
             })
             .1
     }
