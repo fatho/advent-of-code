@@ -8,18 +8,12 @@ use nom::{
     IResult,
 };
 
-use crate::Day;
+use crate::{Day, parsers};
 
 pub static RUN: Day = Day { part1, part2 };
 
 pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
-    let (rest, mut bingo) = p_bingo(input).map_err(|_| anyhow::anyhow!("parsing failed"))?;
-    if !rest.is_empty() {
-        bail!(
-            "could not parse whole input: {}",
-            std::str::from_utf8(rest).unwrap()
-        );
-    }
+    let mut bingo = parsers::parse(p_bingo, input)?;
 
     let mut win = None;
 
@@ -41,13 +35,7 @@ pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
 }
 
 pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
-    let (rest, mut bingo) = p_bingo(input).map_err(|_| anyhow::anyhow!("parsing failed"))?;
-    if !rest.is_empty() {
-        bail!(
-            "could not parse whole input: {}",
-            std::str::from_utf8(rest).unwrap()
-        );
-    }
+    let mut bingo = parsers::parse(p_bingo, input)?;
 
     let mut last_win = None;
     let mut board_won = vec![false; bingo.boards.len()];

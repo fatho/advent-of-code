@@ -9,6 +9,7 @@ pub mod day2;
 pub mod day3;
 pub mod day4;
 
+pub mod parsers;
 pub mod runner;
 pub use runner::{aoc_main, Day};
 
