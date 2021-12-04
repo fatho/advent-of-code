@@ -58,50 +58,35 @@ pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
                 |(counts, nums)| {
                     // determine o2 number
                     let mut o2_candidates = nums.clone();
-                    {
-                        let mut o2_counts = counts.clone();
-                        let mut bit = counts.num_digits;
-                        while o2_candidates.len() > 1 {
-                            bit -= 1;
-                            let mcb = o2_counts.most_common_bit(bit).unwrap_or(true);
-                            o2_candidates.retain(|num| {
-                                let keep = (num & (1 << bit) != 0) == mcb;
-                                if !keep {
-                                    o2_counts.uncount(*num);
-                                }
-                                keep
-                            });
-                        }
-                    }
-
                     let mut co2_candidates = nums;
-                    {
-                        let mut co2_counts = counts.clone();
-                        let mut bit = counts.num_digits;
-                        while co2_candidates.len() > 1 {
-                            bit -= 1;
-                            let lcb = !co2_counts.most_common_bit(bit).unwrap_or(true);
-                            co2_candidates.retain(|num| {
-                                let keep = (num & (1 << bit) != 0) == lcb;
-                                if !keep {
-                                    co2_counts.uncount(*num);
-                                }
-                                keep
-                            });
-                        }
-                    }
 
-                    log::debug!("{:?}", o2_candidates[0]);
+                    prune_candidates(&mut o2_candidates, counts.clone(), true);
+                    prune_candidates(&mut co2_candidates, counts.clone(), false);
+
                     let o2 = o2_candidates[0];
                     let co2 = co2_candidates[0];
 
-                    log::debug!("o2: {}, co2: {}", o2, co2);
                     (o2 * co2) as i64
                 },
             )
         }),
         input,
     )
+}
+
+fn prune_candidates(candidates: &mut Vec<u32>, mut counts: Counts, most: bool) {
+    let mut bit = counts.num_digits;
+    while candidates.len() > 1 {
+        bit -= 1;
+        let keep_when = counts.most_common_bit(bit).unwrap_or(true) == most;
+        candidates.retain(|num| {
+            let keep = (num & (1 << bit) != 0) == keep_when;
+            if !keep {
+                counts.uncount(*num);
+            }
+            keep
+        });
+    }
 }
 
 pub fn parse_bin(input: &[u8]) -> IResult<&[u8], u32> {
