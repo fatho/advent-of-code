@@ -1,1 +1,8 @@
 */target
+
+# Perf
+perf.data
+perf.data.old
+
+# cargo-flamegraph
+flamegraph.svg
