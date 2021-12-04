@@ -19,6 +19,7 @@ macro_rules! parse_int {
 
 parse_int!(i32);
 parse_int!(i64);
+parse_int!(u8);
 parse_int!(u32);
 parse_int!(u64);
 

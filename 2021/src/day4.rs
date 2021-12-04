@@ -7,7 +7,7 @@ use nom::{
     IResult,
 };
 
-use crate::{Day, parsers};
+use crate::{parsers, Day};
 
 pub static RUN: Day = Day { part1, part2 };
 
@@ -37,15 +37,21 @@ pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
     let mut bingo = parsers::parse(p_bingo, input)?;
 
     let mut last_win = None;
-    let mut board_won = vec![false; bingo.boards.len()];
 
     for draw in bingo.draws {
-        for (i, board) in bingo.boards.iter_mut().enumerate() {
+        for board in bingo.boards.iter_mut() {
             board.mark(draw);
-            if !board_won[i] && board.won() {
-                board_won[i] = true;
+        }
+        bingo.boards.retain(|board| {
+            if board.won() {
                 last_win = Some((board.sum_unmarked(), draw));
+                false
+            } else {
+                true
             }
+        });
+        if bingo.boards.is_empty() {
+            break;
         }
     }
 
@@ -136,15 +142,13 @@ impl Board {
     fn sum_unmarked(&self) -> u32 {
         self.numbers
             .iter()
-            .enumerate()
-            .filter_map(|(index, num)| {
-                if self.marked & (1 << index) == 0 {
-                    Some(*num)
-                } else {
-                    None
-                }
+            .fold((self.marked, 0), |(marked, sum), num| {
+                (
+                    marked >> 1,
+                    sum + (1 - (marked & 1)) * num
+                )
             })
-            .sum()
+            .1
     }
 }
 
