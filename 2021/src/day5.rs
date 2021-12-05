@@ -1,44 +1,93 @@
-use nom::bytes::complete::{tag, take_while};
-use nom::combinator::{flat_map, map};
-use nom::multi::{fold_many0, many0};
+use nom::bytes::complete::tag;
+use nom::combinator::map;
+use nom::multi::many0;
 use nom::sequence::{separated_pair, terminated};
 use nom::IResult;
 
 use crate::{parsers, Day};
-use std::collections::HashMap;
 
 pub static RUN: Day = Day { part1, part2 };
 
 pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
     let lines = parsers::parse(many0(terminated(Line::parse, parsers::newline)), input)?;
 
-    let mut map = HashMap::<Point, u32>::new();
+    let (max_x, max_y) = lines
+        .iter()
+        .flat_map(|l| [l.p1, l.p2])
+        .fold((0, 0), |(mx, my), p| (mx.max(p.x), my.max(p.y)));
+
+    let mut map = Detector::new(max_x as u32 + 1, max_y as u32 + 1);
 
     for line in lines {
         if line.is_axis_aligned() {
             for p in line.points() {
-                let entry = map.entry(p).or_default();
-                *entry += 1;
+                map.add_point(p);
             }
         }
     }
 
-    Ok(map.values().filter(|lines| **lines >= 2).count() as i64)
+    Ok(map.count_danger() as i64)
 }
 
 pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
     let lines = parsers::parse(many0(terminated(Line::parse, parsers::newline)), input)?;
 
-    let mut map = HashMap::<Point, u32>::new();
+    let (max_x, max_y) = lines
+        .iter()
+        .flat_map(|l| [l.p1, l.p2])
+        .fold((0, 0), |(mx, my), p| (mx.max(p.x), my.max(p.y)));
+
+    let mut map = Detector::new(max_x as u32 + 1, max_y as u32 + 1);
 
     for line in lines {
         for p in line.points() {
-            let entry = map.entry(p).or_default();
-            *entry += 1;
+            map.add_point(p)
         }
     }
 
-    Ok(map.values().filter(|lines| **lines >= 2).count() as i64)
+    Ok(map.count_danger() as i64)
+}
+
+struct Detector {
+    bits: Vec<u64>,
+    stride: u32,
+}
+
+impl Detector {
+    pub fn new(width: u32, height: u32) -> Self {
+        let num_bits = width * height * 2;
+        let num_words = (num_bits + 63) / 64;
+        Detector {
+            bits: vec![0; num_words as usize],
+            stride: width,
+        }
+    }
+
+    fn split_index(&self, x: u32, y: u32) -> (usize, u32) {
+        let bit_total = (x * self.stride + y) * 2;
+        let word = bit_total >> 6;
+        let bit_in_word = bit_total & 0b11_1111;
+        (word as usize, bit_in_word)
+    }
+
+    pub fn add_point(&mut self, p: Point) {
+        let (word_index, bit_index) = self.split_index(p.x as u32, p.y as u32);
+        let word = self.bits[word_index];
+        let value = (word >> bit_index) & 0b11;
+        if value < 2 {
+            let new_value = value + 1;
+            let mask = 0b11 << bit_index;
+            self.bits[word_index] = (word & !mask) | (new_value << bit_index);
+        }
+    }
+
+    pub fn count_danger(&self) -> u32 {
+        let danger_mask = 0xAAAA_AAAA_AAAA_AAAA_u64;
+        self.bits
+            .iter()
+            .map(|word| (word & danger_mask).count_ones())
+            .sum()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
