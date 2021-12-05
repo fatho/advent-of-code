@@ -20,9 +20,7 @@ pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
 
     for line in lines {
         if line.is_axis_aligned() {
-            for p in line.points() {
-                map.add_point(p);
-            }
+            line.points().for_each(|p| map.add_point(p));
         }
     }
 
@@ -40,9 +38,7 @@ pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
     let mut map = Detector::new(max_x as u32 + 1, max_y as u32 + 1);
 
     for line in lines {
-        for p in line.points() {
-            map.add_point(p)
-        }
+        line.points().for_each(|p| map.add_point(p));
     }
 
     Ok(map.count_danger() as i64)
@@ -140,13 +136,8 @@ impl Line {
         let stepx = dx.signum();
         let stepy = dy.signum();
 
-        let mut state = self.p1;
-        std::iter::from_fn(move || {
-            let cur = state;
-            state = cur.offset(stepx, stepy);
-            Some(cur)
-        })
-        .take(steps as usize + 1)
+        std::iter::successors(Some(self.p1), move |p| Some(p.offset(stepx, stepy)))
+            .take(steps as usize + 1)
     }
 }
 
