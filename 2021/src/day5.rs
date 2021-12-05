@@ -15,31 +15,14 @@ pub static RUN: Day = Day { part1, part2 };
 pub fn part1<'a>(input: &'a [u8]) -> anyhow::Result<i64> {
     let lines = parsers::parse(many0(terminated(Line::parse, parsers::newline)), input)?;
 
-    let mut map = HashMap::<(i32, i32), u32>::new();
+    let mut map = HashMap::<Point, u32>::new();
 
     for line in lines {
-        if line.p1.x == line.p2.x {
-            let (from, to) = if line.p1.y < line.p2.y {
-                (line.p1.y, line.p2.y)
-            } else {
-                (line.p2.y, line.p1.y)
-            };
-            for y in from..=to {
-                let entry = map.entry((line.p1.x, y)).or_default();
+        if line.is_axis_aligned() {
+            for p in line.points() {
+                let entry = map.entry(p).or_default();
                 *entry += 1;
             }
-        } else if line.p1.y == line.p2.y {
-            let (from, to) = if line.p1.x < line.p2.x {
-                (line.p1.x, line.p2.x)
-            } else {
-                (line.p2.x, line.p1.x)
-            };
-            for x in from..=to {
-                let entry = map.entry((x, line.p1.y)).or_default();
-                *entry += 1;
-            }
-        } else {
-            // skip non-axis aligned lines
         }
     }
 
@@ -48,7 +31,17 @@ pub fn part1<'a>(input: &'a [u8]) -> anyhow::Result<i64> {
 
 pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
     let lines = parsers::parse(many0(terminated(Line::parse, parsers::newline)), input)?;
-    todo!()
+
+    let mut map = HashMap::<Point, u32>::new();
+
+    for line in lines {
+        for p in line.points() {
+            let entry = map.entry(p).or_default();
+            *entry += 1;
+        }
+    }
+
+    Ok(map.values().filter(|lines| **lines >= 2).count() as i64)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -86,11 +79,15 @@ impl Line {
         )(input)
     }
 
+    pub fn is_axis_aligned(&self) -> bool {
+        self.p1.x == self.p2.x || self.p1.y == self.p2.y
+    }
+
     pub fn points(&self) -> impl Iterator<Item = Point> {
         let dx = self.p2.x - self.p1.x;
         let dy = self.p2.y - self.p1.y;
         assert!(
-            dx == 0 || dy == 0 || dx == dy,
+            dx == 0 || dy == 0 || dx.abs() == dy.abs(),
             "lines can only be horizontal, vertical or diagonal"
         );
         let steps = dx.abs().max(dy.abs());
@@ -103,8 +100,8 @@ impl Line {
             state = cur.offset(stepx, stepy);
             Some(cur)
         })
-        .take(steps as usize)
+        .take(steps as usize + 1)
     }
 }
 
-crate::test_day!(crate::day5::RUN, "day5", 0, 0);
+crate::test_day!(crate::day5::RUN, "day5", 7644, 18627);
