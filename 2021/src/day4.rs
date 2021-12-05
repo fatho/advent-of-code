@@ -75,7 +75,7 @@ fn p_board(input: &[u8]) -> IResult<&[u8], Board> {
             BOARD_SIZE,
             terminated(parsers::u32, take_while(|x: u8| x.is_ascii_whitespace())),
         ),
-        |numbers| Board::new(numbers),
+        Board::new,
     )(input)
 }
 
@@ -111,7 +111,7 @@ impl Board {
     }
 
     fn won(&self) -> bool {
-        const WINNING: &'static [u32] = &[
+        const WINNING: &[u32] = &[
             // Rows
             0b0000000000000000000011111,
             0b0000000000000001111100000,

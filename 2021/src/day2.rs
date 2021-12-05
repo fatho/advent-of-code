@@ -3,7 +3,7 @@ use nom::{
     bytes::complete::tag,
     combinator::{map, value},
     multi::fold_many0,
-    sequence::{terminated, separated_pair},
+    sequence::{separated_pair, terminated},
     IResult,
 };
 
@@ -71,9 +71,10 @@ struct CtrlCmd {
 
 impl CtrlCmd {
     fn parse(input: &[u8]) -> IResult<&[u8], CtrlCmd> {
-        map(separated_pair(CtrlDir::parse, tag(b" "), parsers::i64), |(dir, amount)| {
-            CtrlCmd { dir, amount }
-        })(input)
+        map(
+            separated_pair(CtrlDir::parse, tag(b" "), parsers::i64),
+            |(dir, amount)| CtrlCmd { dir, amount },
+        )(input)
     }
 }
 

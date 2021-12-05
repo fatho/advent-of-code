@@ -1,7 +1,11 @@
-use nom::{multi::{fold_many_m_n, fold_many0}, sequence::terminated, combinator::flat_map};
+use nom::{
+    combinator::flat_map,
+    multi::{fold_many0, fold_many_m_n},
+    sequence::terminated,
+};
 
-use crate::{Day, parsers};
-use std::{collections::VecDeque, cmp::Ordering};
+use crate::{parsers, Day};
+use std::{cmp::Ordering, collections::VecDeque};
 
 pub static RUN: Day = Day { part1, part2 };
 
@@ -17,10 +21,16 @@ fn day1_impl(input: &[u8], window_size: usize) -> anyhow::Result<i64> {
     parsers::parse(
         flat_map(
             // first fill the scanning buffer
-            fold_many_m_n(window_size, window_size, terminated(parsers::i32, parsers::newline), || Sonar::default(), |mut acc, item| {
-                acc.push_init(item);
-                acc
-            }),
+            fold_many_m_n(
+                window_size,
+                window_size,
+                terminated(parsers::i32, parsers::newline),
+                Sonar::default,
+                |mut acc, item| {
+                    acc.push_init(item);
+                    acc
+                },
+            ),
             // then switch to scanning mode
             |mut sonar| {
                 fold_many0(
@@ -32,19 +42,18 @@ fn day1_impl(input: &[u8], window_size: usize) -> anyhow::Result<i64> {
                         } else {
                             increases
                         }
-                    }
+                    },
                 )
-            }
+            },
         ),
-        input
+        input,
     )
 }
-
 
 #[derive(Default)]
 struct Sonar {
     window_sum: i32,
-    buffer: VecDeque<i32>
+    buffer: VecDeque<i32>,
 }
 
 impl Sonar {

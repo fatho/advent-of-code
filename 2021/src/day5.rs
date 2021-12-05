@@ -1,4 +1,3 @@
-use anyhow::bail;
 use nom::bytes::complete::{tag, take_while};
 use nom::combinator::{flat_map, map};
 use nom::multi::{fold_many0, many0};
@@ -6,13 +5,11 @@ use nom::sequence::{separated_pair, terminated};
 use nom::IResult;
 
 use crate::{parsers, Day};
-use std::cmp::Ordering;
-use std::collections::binary_heap::Iter;
 use std::collections::HashMap;
 
 pub static RUN: Day = Day { part1, part2 };
 
-pub fn part1<'a>(input: &'a [u8]) -> anyhow::Result<i64> {
+pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
     let lines = parsers::parse(many0(terminated(Line::parse, parsers::newline)), input)?;
 
     let mut map = HashMap::<Point, u32>::new();

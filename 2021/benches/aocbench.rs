@@ -1,4 +1,4 @@
-use advent_of_code_2021::{self as aoc, Day, include_input};
+use advent_of_code_2021::{self as aoc, include_input, Day};
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
@@ -16,6 +16,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     bench_day(c, "day2", aoc::day2::RUN, include_input!("day2"));
     bench_day(c, "day3", aoc::day3::RUN, include_input!("day3"));
     bench_day(c, "day4", aoc::day4::RUN, include_input!("day4"));
+    bench_day(c, "day5", aoc::day5::RUN, include_input!("day5"));
 }
 
 criterion_group!(benches, criterion_benchmark);

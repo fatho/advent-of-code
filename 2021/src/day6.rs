@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use nom::bytes::complete::take_while;
 use nom::combinator::{flat_map, map};
 use nom::multi::fold_many0;
@@ -9,7 +11,7 @@ use std::cmp::Ordering;
 
 pub static RUN: Day = Day { part1, part2 };
 
-pub fn part1<'a>(input: &'a [u8]) -> anyhow::Result<i64> {
+pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
     parsers::parse(|_| Ok((b"", 0)), input)
 }
 

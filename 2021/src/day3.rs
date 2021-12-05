@@ -1,6 +1,6 @@
-use nom::bytes::complete::{take_while};
+use nom::bytes::complete::take_while;
 use nom::combinator::{flat_map, map};
-use nom::multi::{fold_many0};
+use nom::multi::fold_many0;
 use nom::sequence::terminated;
 use nom::IResult;
 
@@ -9,7 +9,7 @@ use std::cmp::Ordering;
 
 pub static RUN: Day = Day { part1, part2 };
 
-pub fn part1<'a>(input: &'a [u8]) -> anyhow::Result<i64> {
+pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
     parsers::parse(
         flat_map(
             map(
@@ -143,12 +143,14 @@ struct BinaryLen {
 
 impl BinaryLen {
     pub fn parse(input: &[u8]) -> IResult<&[u8], BinaryLen> {
-        map(take_while(|b| b == b'0' || b == b'1'), |digits: &[u8]| BinaryLen {
-            len: digits.len() as u32,
-            value: digits
-                .iter()
-                .map(|d| d - b'0')
-                .fold(0, |acc, digit| acc << 1 | digit as u32)
+        map(take_while(|b| b == b'0' || b == b'1'), |digits: &[u8]| {
+            BinaryLen {
+                len: digits.len() as u32,
+                value: digits
+                    .iter()
+                    .map(|d| d - b'0')
+                    .fold(0, |acc, digit| acc << 1 | digit as u32),
+            }
         })(input)
     }
 }
