@@ -11,10 +11,7 @@ pub static RUN: Day = Day { part1, part2 };
 pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
     let lines = parsers::parse(many0(terminated(Line::parse, parsers::newline)), input)?;
 
-    let (max_x, max_y) = lines
-        .iter()
-        .flat_map(|l| [l.p1, l.p2])
-        .fold((0, 0), |(mx, my), p| (mx.max(p.x), my.max(p.y)));
+    let (max_x, max_y) = lines_extent(&lines);
 
     let mut map = Detector::new(max_x as u32 + 1, max_y as u32 + 1);
 
@@ -30,10 +27,7 @@ pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
 pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
     let lines = parsers::parse(many0(terminated(Line::parse, parsers::newline)), input)?;
 
-    let (max_x, max_y) = lines
-        .iter()
-        .flat_map(|l| [l.p1, l.p2])
-        .fold((0, 0), |(mx, my), p| (mx.max(p.x), my.max(p.y)));
+    let (max_x, max_y) = lines_extent(&lines);
 
     let mut map = Detector::new(max_x as u32 + 1, max_y as u32 + 1);
 
@@ -44,8 +38,25 @@ pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
     Ok(map.count_danger() as i64)
 }
 
+fn lines_extent(lines: &[Line]) -> (i32, i32) {
+    lines
+        .iter()
+        .flat_map(|l| [l.p1, l.p2])
+        .fold((0, 0), |(mx, my), p| (mx.max(p.x), my.max(p.y)))
+}
+
+// Detector for overlapping geothermal vents.
+// Two or more overlapping vents are seen as danger.
 struct Detector {
+    /// For each field on the rectangular map, this vector contains two bits in
+    /// one of the following states:
+    /// - `00`: no vents
+    /// - `01`: one vent
+    /// - `11`: more than one vent
+    ///
+    /// The pattern `10` cannot occur.
     bits: Vec<u64>,
+    /// Number of two-bit entries in one row.
     stride: u32,
 }
 
@@ -69,15 +80,23 @@ impl Detector {
     pub fn add_point(&mut self, p: Point) {
         let (word_index, bit_index) = self.split_index(p.x as u32, p.y as u32);
         let word = self.bits[word_index];
-        let value = (word >> bit_index) & 0b11;
-        if value < 2 {
-            let new_value = value + 1;
-            let mask = 0b11 << bit_index;
-            self.bits[word_index] = (word & !mask) | (new_value << bit_index);
-        }
+        let mask = 0b11 << bit_index;
+        // Implement the state transition for the two bits representing the
+        // point `p`:
+        // - The rightmost term ensures that the least significant bit gets set
+        // - The middle term sets the most significant bit, while the mask
+        //   ensures that only the two bits for the current point are affected.
+        //
+        // Note that the neighboring most significant bit may bleed into the
+        // current position. But since we only shift by one, and we always set
+        // our least significant bit regardless, this is unobservable.
+        self.bits[word_index] = word | ((word << 1) & mask) | (1 << bit_index);
     }
 
     pub fn count_danger(&self) -> u32 {
+        // Mask for the most significant bit of each of the two-bit entries. The
+        // number of ones that remain after applying the mask is the number of
+        // points for which there are at least two vents.
         let danger_mask = 0xAAAA_AAAA_AAAA_AAAA_u64;
         self.bits
             .iter()
