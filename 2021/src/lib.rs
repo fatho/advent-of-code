@@ -108,7 +108,12 @@ where
 #[macro_export]
 macro_rules! include_input {
     ($day:expr) => {
-        include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/inputs/", $day, "/input.txt"))
+        include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/inputs/",
+            $day,
+            "/input.txt"
+        ))
     };
 }
 
