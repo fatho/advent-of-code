@@ -12,6 +12,7 @@ in
       # Rust core
       channel.rust
       # Neat helper tools
+      cargo-asm
       cargo-audit
       cargo-edit
       cargo-flamegraph

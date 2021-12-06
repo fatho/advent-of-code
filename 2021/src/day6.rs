@@ -55,8 +55,21 @@ impl Population {
     }
 
     pub fn advance(self) -> Self {
-        // This is multiplying the count vector with the growth (transition)
-        // matrix.
+        // This is multiplying the count (column) vector with the growth
+        // (transition) matrix:
+        //
+        /*
+        0 1 0 0 0 0 0 0 0
+        0 0 1 0 0 0 0 0 0
+        0 0 0 1 0 0 0 0 0
+        0 0 0 0 1 0 0 0 0
+        0 0 0 0 0 1 0 0 0
+        0 0 0 0 0 0 1 0 0
+        1 0 0 0 0 0 0 1 0
+        0 0 0 0 0 0 0 0 1
+        1 0 0 0 0 0 0 0 0
+        */
+
         Population {
             fish_by_timer: [
                 self.fish_by_timer[1],
