@@ -1,5 +1,12 @@
-use std::{fmt, path::PathBuf, str::FromStr, time::Instant};
+use std::{
+    fmt,
+    io::Read,
+    path::{Path, PathBuf},
+    str::FromStr,
+    time::Instant,
+};
 
+use anyhow::Context;
 use structopt::StructOpt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -35,11 +42,14 @@ impl FromStr for Part {
     about = "Solutions for Advent of Code puzzles."
 )]
 pub struct AocOpt {
-    #[structopt(short, long)]
-    day: i32,
+    #[structopt(short, long, required_unless_one(&["all"]))]
+    day: Option<i32>,
 
     #[structopt(short, long, default_value("1"))]
     part: Part,
+
+    #[structopt(short, long, conflicts_with_all(&["day", "part"]))]
+    all: bool,
 
     /// Input file
     #[structopt(short, long, parse(from_os_str))]
@@ -66,20 +76,40 @@ impl Day {
 
 pub fn aoc_main(days: &[Day]) -> anyhow::Result<()> {
     let opt = AocOpt::from_args();
-    if let Some(day) = days.get((opt.day - 1) as usize) {
+    if opt.all {
+        let before = Instant::now();
+        for (index, day) in days.iter().enumerate() {
+            let inpath = opt.input.join(format!("day{}/input.txt", index + 1));
+            let contents =
+                read_bytes(&inpath).with_context(|| format!("reading {}", inpath.display()))?;
+            let out1 = (day.part1)(&contents)
+                .with_context(|| format!("day{}.1: {}", index + 1, inpath.display().to_string()))?;
+            let out2 = (day.part2)(&contents)
+                .with_context(|| format!("day{}.2: {}", index + 1, inpath.display().to_string()))?;
+            println!("{}: {} {}", index + 1, out1, out2);
+        }
+        let duration = before.elapsed();
+        eprintln!("Took {:.3} ms", duration.as_secs_f64() * 1000.0);
+    } else if let Some(day) = days.get((opt.day.unwrap() - 1) as usize) {
         let runner = match opt.part {
             Part::One => day.part1,
             Part::Two => day.part2,
         };
         let before = Instant::now();
-        let file = std::fs::File::open(opt.input)?;
-        let contents = unsafe { memmap::Mmap::map(&file)? };
+        let contents = read_bytes(&opt.input)?;
         let output = runner(&contents)?;
         println!("{}", output);
         let duration = before.elapsed();
         eprintln!("Took {:.3} ms", duration.as_secs_f64() * 1000.0);
-        Ok(())
     } else {
         anyhow::bail!("no such day")
     }
+    Ok(())
+}
+
+fn read_bytes(inpath: &Path) -> Result<Vec<u8>, std::io::Error> {
+    let mut file = std::fs::File::open(inpath)?;
+    let mut contents = Vec::new();
+    file.read_to_end(&mut contents)?;
+    Ok(contents)
 }
