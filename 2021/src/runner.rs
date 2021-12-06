@@ -1,4 +1,4 @@
-use std::{fmt, path::PathBuf, str::FromStr, time::Instant, io::Read};
+use std::{fmt, path::PathBuf, str::FromStr, time::Instant};
 
 use structopt::StructOpt;
 
@@ -71,11 +71,10 @@ pub fn aoc_main(days: &[Day]) -> anyhow::Result<()> {
             Part::One => day.part1,
             Part::Two => day.part2,
         };
-        let mut file = std::fs::File::open(opt.input)?;
-        let mut input = Vec::new();
-        file.read_to_end(&mut input)?;
         let before = Instant::now();
-        let output = runner(&input)?;
+        let file = std::fs::File::open(opt.input)?;
+        let contents = unsafe { memmap::Mmap::map(&file)? };
+        let output = runner(&contents)?;
         println!("{}", output);
         let duration = before.elapsed();
         eprintln!("Took {:.3} ms", duration.as_secs_f64() * 1000.0);
