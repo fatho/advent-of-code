@@ -24,7 +24,6 @@ pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
         .flat_map(|e| &e.outputs)
         .filter(|p| matches!(p.count_set(), 2 | 3 | 4 | 7))
         .count();
-    // println!("{:?}", entries);
 
     Ok(num_unique as i64)
 }
@@ -34,7 +33,7 @@ pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
 
     let mut result = 0;
     for e in entries {
-        let (m, digits) = Mapping::deduct_rec(&e.observations).context("invalid observation")?;
+        let (_, digits) = Mapping::deduct_rec(&e.observations).context("invalid observation")?;
         let mut num = 0;
         for o in &e.outputs {
             num *= 10;
@@ -98,32 +97,6 @@ impl Mapping {
         }
     }
 
-    // fn observe(&mut self, pat: &Pattern) {
-    //     // abcdefg
-    //     // 0123456
-    //     const COUNT_TO_SEGMENTS: &[&[u8]] = &[
-    //         // 0
-    //         &[],
-    //         // 1
-    //         &[],
-    //         // 2
-    //         &[2, 5],
-    //         // 3
-    //         &[0, 2, 5],
-    //         // 4
-    //         &[1, 2, 3, 5],
-    //         // 5
-    //         &[],
-    //         // 6
-    //         &[],
-    //         // 7
-    //         &[0, 1, 2, 3, 4, 5, 6],
-    //     ]
-    //     match pat.count_set() {
-    //         2 | 3 | 4 | 7
-    //     }
-    // }
-
     fn deduct_rec(obs: &[Pattern]) -> Option<(Self, Vec<Pattern>)> {
         fn go(
             state: Mapping,
@@ -146,8 +119,6 @@ impl Mapping {
                 for choice in choices {
                     let digit_index = *choice as usize;
                     if digits[digit_index].is_none() {
-                        let spaces = " ".repeat(10 - obs.len());
-                        //eprintln!("{}Trying: {}", spaces, digit_index);
                         digits[digit_index] = Some(obs[0]);
                         if let Some(result) = go(state.restrict(*choice, obs[0]), &obs[1..], digits)
                         {
@@ -165,42 +136,6 @@ impl Mapping {
         go(state, obs, &mut remaining)
     }
 
-    fn deduct(obs: &[Pattern]) -> Option<Self> {
-        assert!(obs.len() == 10);
-
-        let mut states = vec![Mapping::new()];
-        let mut choices = vec![COUNT_TO_DIGITS[obs[0].count_set() as usize]];
-
-        while let Some(choice) = choices.pop() {
-            if let Some((next, rest)) = choice.split_first() {
-                let pre_state = states.last().expect("must have state for this chocie");
-                let state = pre_state.restrict(*next, obs[choices.len()]);
-
-                choices.push(rest);
-
-                if choices.len() == obs.len() {
-                    // check if we found a solution
-                    let valid = (0..7)
-                        .map(|seg| state.segment(seg))
-                        .all(|pat| pat.count_set() == 1);
-                    if valid {
-                        return Some(state);
-                    } else {
-                        // continue search
-                    }
-                } else {
-                    // next choice
-                    states.push(state);
-                    choices.push(COUNT_TO_DIGITS[obs[choices.len()].count_set() as usize]);
-                }
-            } else {
-                // no more choices here
-                states.pop();
-            }
-        }
-        None
-    }
-
     fn restrict(self, digit: u8, pat: Pattern) -> Self {
         let on_segs = DIGIT_TO_SEGMENTS[digit as usize];
         let mut out = self;
@@ -208,25 +143,20 @@ impl Mapping {
         for seg in 0..7 {
             let offset = seg * 8;
 
+            // If the segment is on for this digit...
             let bits = if on_segs.contains(&seg) {
+                // we know it must be one of this digit's pattern
                 pat.bits
             } else {
+                // otherwise, we know it's definitely not one of this digit's
+                // pattern
                 !pat.bits
             };
 
             let mask = !(0xFF << offset) | ((bits as u64) << offset);
 
             out.segments &= mask;
-
-            // on_segs
         }
-        // for seg in on_segs {
-        //     let offset = *seg * 8;
-
-        //     let mask = !(0xFF << offset) | ((pat.bits as u64) << offset);
-
-        //     out.segments &= mask;
-        // }
 
         out
     }
@@ -237,16 +167,17 @@ impl Mapping {
 }
 
 #[test]
+#[allow(clippy::unusual_byte_groupings)]
 fn test_restrict() {
     let map = Mapping::new();
     let pat = Pattern::from_segs(&[3, 6]);
     let map2 = map.restrict(1, pat);
     assert_eq!(
         map2.segments,
-        0b00000000_01111111_01001000_01111111_01111111_01001000_01111111_01111111_u64,
+        0b00000000_00110111_01001000_00110111_00110111_01001000_00110111_00110111_u64,
         "\n{:b}\n{:b}",
         map2.segments,
-        0b00000000_01111111_01001000_01111111_01111111_01001000_01111111_01111111_u64
+        0b00000000_00110111_01001000_00110111_00110111_01001000_00110111_00110111_u64
     );
     assert_eq!(map2.segment(2), pat);
     assert_eq!(map2.segment(5), pat);
@@ -296,10 +227,6 @@ const DIGIT_TO_SEGMENTS: &[&[u8]] = &[
     &[0, 1, 2, 3, 5, 6],
 ];
 
-const fn seg_idx(segch: u8) -> u8 {
-    segch - b'a'
-}
-
 #[derive(Debug)]
 struct Entry {
     observations: Vec<Pattern>,
@@ -318,14 +245,11 @@ impl Pattern {
         Pattern { bits }
     }
 
-    pub const fn empty() -> Self {
-        Self::new(0)
-    }
-
     pub const fn all() -> Self {
         Self::new(0b1111111)
     }
 
+    #[cfg(test)]
     pub fn from_segs(segs: &[u8]) -> Self {
         let mut bits = 0;
         for seg in segs {
@@ -366,4 +290,4 @@ impl Display for Pattern {
     }
 }
 
-//crate::test_day!(crate::day8::RUN, "day8", 278, 0);
+crate::test_day!(crate::day8::RUN, "day8", 278, 986179);
