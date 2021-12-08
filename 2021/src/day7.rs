@@ -68,4 +68,4 @@ fn parse_crabs(input: &[u8]) -> Result<Vec<u32>, anyhow::Error> {
     Ok(crab_counts)
 }
 
-crate::test_day!(crate::day7::RUN, "day7", 347509, 0);
+crate::test_day!(crate::day7::RUN, "day7", 347509, 98257206);
