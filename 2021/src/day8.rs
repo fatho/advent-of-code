@@ -42,9 +42,7 @@ pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
                 .position(|p| p == o)
                 .context("invalid pattern")?;
             num += d;
-            eprint!("{}", d);
         }
-        eprintln!();
         result += num;
     }
 
@@ -106,9 +104,7 @@ impl Mapping {
             if obs.is_empty() {
                 let valid = (0..7)
                     .map(|seg| state.segment(seg))
-                    //.inspect(|pat| print!("{} ", pat.count_set()))
                     .all(|pat| pat.count_set() == 1);
-                //println!();
                 if valid {
                     Some((state, digits.iter().map(|d| d.unwrap()).collect()))
                 } else {
