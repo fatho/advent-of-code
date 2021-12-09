@@ -43,18 +43,18 @@ pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
     let mut basin_sizes = Vec::new();
     for (lx, ly) in low_points.iter().copied() {
         let mut flood_queue = vec![(lx, ly)];
-        let mut basin_size = 0;
+        let mut basin_size = 1;
+        flooded.set(lx, ly, true);
         while let Some((x, y)) = flood_queue.pop() {
-            if !flooded.get(x, y) {
-                // remember we were here
-                flooded.set(x, y, true);
-                basin_size += 1;
-                // flood neighbours
-                flood_queue.extend(
-                    map.neighbours_with_index(x, y)
-                        .filter(|(_, height)| *height < 9)
-                        .map(|(pos, _)| pos),
-                );
+            for ((nx, ny), _) in map
+                .neighbours_with_index(x, y)
+                .filter(|(_, height)| *height < 9)
+            {
+                if !flooded.get(nx, ny) {
+                    flooded.set(nx, ny, true);
+                    basin_size += 1;
+                    flood_queue.push((nx, ny))
+                }
             }
         }
         basin_sizes.push(basin_size);
