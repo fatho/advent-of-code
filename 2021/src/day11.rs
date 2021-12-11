@@ -124,43 +124,17 @@ where
         }
     }
 
-    pub fn get(&self, x: u32, y: u32) -> T {
-        self.data[(y * self.width + x) as usize]
-    }
-
-    pub fn set(&mut self, x: u32, y: u32, value: T) {
-        self.data[(y * self.width + x) as usize] = value;
-    }
-
     pub fn positions_mut(&mut self) -> impl Iterator<Item = ((u32, u32), &mut T)> + '_ {
-        // TODO: eliminate division and mod (expensive!)
         let width = self.width;
-        self.data
-            .iter_mut()
-            .enumerate()
-            .map(move |(pos, value)| ((pos as u32 % width, pos as u32 / width), value))
-    }
-
-    pub fn neighbours_with_index(
-        &self,
-        x: u32,
-        y: u32,
-    ) -> impl Iterator<Item = ((u32, u32), T)> + '_ {
-        // TODO: find something nicer than relying on wrapping?
-        let positions = [
-            (x.wrapping_sub(1), y.wrapping_sub(1)),
-            (x, y.wrapping_sub(1)),
-            (x + 1, y.wrapping_sub(1)),
-            (x.wrapping_sub(1), y),
-            (x + 1, y),
-            (x.wrapping_sub(1), y + 1),
-            (x, y + 1),
-            (x + 1, y + 1),
-        ];
-        positions
-            .into_iter()
-            .filter(|(nx, ny)| (0..self.width).contains(nx) && (0..self.height).contains(ny))
-            .map(|(nx, ny)| ((nx, ny), self.get(nx, ny)))
+        self.data.iter_mut().scan((0, 0), move |state, val| {
+            let cur = *state;
+            state.0 += 1;
+            if state.0 == width {
+                state.0 = 0;
+                state.1 += 1;
+            }
+            Some((cur, val))
+        })
     }
 
     pub fn neighbours(&self, x: u32, y: u32) -> impl Iterator<Item = (u32, u32)> + 'static {
