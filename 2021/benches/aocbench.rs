@@ -22,6 +22,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     bench_day(c, "day8", aoc::day8::RUN, include_input!("day8"));
     bench_day(c, "day9", aoc::day9::RUN, include_input!("day9"));
     bench_day(c, "day10", aoc::day10::RUN, include_input!("day10"));
+    bench_day(c, "day11", aoc::day11::RUN, include_input!("day11"));
 }
 
 criterion_group!(benches, criterion_benchmark);

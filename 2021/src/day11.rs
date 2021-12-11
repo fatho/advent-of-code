@@ -16,36 +16,10 @@ pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
     let mut flashes = 0;
     let mut flash_stack = Vec::new();
     for _ in 0..100 {
-        // 1. Increase energy by one
-        for (pos, energy) in map.positions_mut() {
-            *energy += 1;
-            if *energy > 9 {
-                // We know that this is the first time that the energy went
-                // above 9 this step, because all octopi end a step with <= 9.
-                flash_stack.push(pos);
-            }
-        }
-        // 2. Flashing
-        while let Some((fx, fy)) = flash_stack.pop() {
-            flashes += 1;
-            for pos in map.neighbours(fx, fy) {
-                let value = &mut map[pos];
-                *value += 1;
-                // only flash once (for the first increase above 9) in a step
-                if *value == 10 {
-                    flash_stack.push(pos);
-                }
-            }
-        }
-        // 3. Reset
-        for energy in map.data.iter_mut() {
-            if *energy > 9 {
-                *energy = 0;
-            }
-        }
+        flashes += flash_step(&mut map, &mut flash_stack);
     }
 
-    Ok(flashes)
+    Ok(flashes as i64)
 }
 
 pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
@@ -55,34 +29,7 @@ pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
     let mut step = 0;
     loop {
         step += 1;
-        // 1. Increase energy by one
-        for (pos, energy) in map.positions_mut() {
-            *energy += 1;
-            if *energy > 9 {
-                // We know that this is the first time that the energy went
-                // above 9 this step, because all octopi end a step with <= 9.
-                flash_stack.push(pos);
-            }
-        }
-        // 2. Flashing
-        while let Some((fx, fy)) = flash_stack.pop() {
-            for pos in map.neighbours(fx, fy) {
-                let value = &mut map[pos];
-                *value += 1;
-                // only flash once (for the first increase above 9) in a step
-                if *value == 10 {
-                    flash_stack.push(pos);
-                }
-            }
-        }
-        // 3. Reset
-        let mut flashes = 0;
-        for energy in map.data.iter_mut() {
-            if *energy > 9 {
-                *energy = 0;
-                flashes += 1;
-            }
-        }
+        let flashes = flash_step(&mut map, &mut flash_stack);
 
         // check if synchronized
         if flashes == map.width * map.height {
@@ -91,6 +38,38 @@ pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
     }
 
     Ok(step)
+}
+
+fn flash_step(map: &mut Map<u8>, flash_stack: &mut Vec<(u32, u32)>) -> u32 {
+    // 1. Increase energy by one
+    for (pos, energy) in map.positions_mut() {
+        *energy += 1;
+        if *energy > 9 {
+            // We know that this is the first time that the energy went
+            // above 9 this step, because all octopi end a step with <= 9.
+            flash_stack.push(pos);
+        }
+    }
+    // 2. Flash propagation
+    while let Some((fx, fy)) = flash_stack.pop() {
+        for pos in map.neighbours(fx, fy) {
+            let value = &mut map[pos];
+            *value += 1;
+            // only flash once (for the first increase above 9) in a step
+            if *value == 10 {
+                flash_stack.push(pos);
+            }
+        }
+    }
+    // 3. Cooldown
+    let mut flashes = 0;
+    for energy in map.data.iter_mut() {
+        if *energy > 9 {
+            *energy = 0;
+            flashes += 1;
+        }
+    }
+    flashes
 }
 
 fn p_map(input: &[u8]) -> IResult<&[u8], Map<u8>> {
@@ -218,4 +197,4 @@ impl<T> IndexMut<(u32, u32)> for Map<T> {
     }
 }
 
-crate::test_day!(crate::day11::RUN, "day11", 0, 0);
+crate::test_day!(crate::day11::RUN, "day11", 1588, 517);
