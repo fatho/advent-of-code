@@ -23,6 +23,20 @@ fn criterion_benchmark(c: &mut Criterion) {
     bench_day(c, "day9", aoc::day9::RUN, include_input!("day9"));
     bench_day(c, "day10", aoc::day10::RUN, include_input!("day10"));
     bench_day(c, "day11", aoc::day11::RUN, include_input!("day11"));
+    bench_day(c, "day12", aoc::day12::RUN, include_input!("day12"));
+    bench_day(c, "day13", aoc::day13::RUN, include_input!("day13"));
+    bench_day(c, "day14", aoc::day14::RUN, include_input!("day14"));
+    bench_day(c, "day15", aoc::day15::RUN, include_input!("day15"));
+    bench_day(c, "day16", aoc::day16::RUN, include_input!("day16"));
+    bench_day(c, "day17", aoc::day17::RUN, include_input!("day17"));
+    bench_day(c, "day18", aoc::day18::RUN, include_input!("day18"));
+    bench_day(c, "day19", aoc::day19::RUN, include_input!("day19"));
+    bench_day(c, "day20", aoc::day20::RUN, include_input!("day20"));
+    bench_day(c, "day21", aoc::day21::RUN, include_input!("day21"));
+    bench_day(c, "day22", aoc::day22::RUN, include_input!("day22"));
+    bench_day(c, "day23", aoc::day23::RUN, include_input!("day23"));
+    bench_day(c, "day24", aoc::day24::RUN, include_input!("day24"));
+    bench_day(c, "day25", aoc::day25::RUN, include_input!("day25"));
 }
 
 criterion_group!(benches, criterion_benchmark);
