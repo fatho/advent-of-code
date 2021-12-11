@@ -105,8 +105,8 @@ fn p_map(input: &[u8]) -> IResult<&[u8], Map<u8>> {
 
 #[derive(Debug)]
 struct Map<T> {
-    // TODO: try z-order curve layout rather than row major for better cache
-    // locality
+    // Presumably no need to bother with Z-order curve here since whole data
+    // (100 bytes) fits into two cache lines already (typically 128 bytes).
     data: Vec<T>,
     width: u32,
     height: u32,
@@ -116,14 +116,6 @@ impl<T> Map<T>
 where
     T: Copy,
 {
-    pub fn new(width: u32, height: u32, default: T) -> Self {
-        Self {
-            data: vec![default; width as usize * height as usize],
-            width,
-            height,
-        }
-    }
-
     pub fn positions_mut(&mut self) -> impl Iterator<Item = ((u32, u32), &mut T)> + '_ {
         let width = self.width;
         self.data.iter_mut().scan((0, 0), move |state, val| {
