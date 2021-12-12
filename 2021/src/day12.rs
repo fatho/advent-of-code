@@ -4,6 +4,7 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use crate::{parsers, Day};
+use anyhow::Context;
 use nom::bytes::complete::{tag, take_while};
 use nom::combinator::{flat_map, map, map_res};
 use nom::multi::fold_many0;
@@ -15,8 +16,19 @@ pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
     let graph = parsers::parse(p_graph, input)?;
 
     let mut num_paths = 0;
+    let start = *graph
+        .vertices
+        .get("start")
+        .context("must have start node")?;
+    let end = *graph.vertices.get("end").context("must have end node")?;
 
-    dfs(&graph, &mut SmallOnce::default(), |_| num_paths += 1);
+    dfs(
+        &graph,
+        start,
+        end,
+        &mut SmallOnce::new(graph.vertices.len()),
+        |_| num_paths += 1,
+    );
 
     Ok(num_paths)
 }
@@ -25,23 +37,39 @@ pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
     let graph = parsers::parse(p_graph, input)?;
 
     let mut num_paths = 0;
+    let start = *graph
+        .vertices
+        .get("start")
+        .context("must have start node")?;
+    let end = *graph.vertices.get("end").context("must have end node")?;
 
-    dfs(&graph, &mut SmallOnceTwice::default(), |_| num_paths += 1);
+    dfs(
+        &graph,
+        start,
+        end,
+        &mut SmallOnceTwice::new(graph.vertices.len()),
+        |_| num_paths += 1,
+    );
 
     Ok(num_paths)
 }
 
-fn dfs<'a, V, F>(graph: &Graph<'a>, visited: &mut V, mut callback: F)
+/// Brute force DFS solution for the problem. This might not be the most
+/// efficient way to go about it.
+///
+/// TODO: explore other solution ideas, e.g. a BFS starting at end, or maybe
+/// dynamic programming.
+fn dfs<'a, V, F>(graph: &Graph<'a>, start: u32, end: u32, visited: &mut V, mut callback: F)
 where
-    V: Visitor<'a>,
-    F: FnMut(&[&str]),
+    V: Visitor,
+    F: FnMut(&[u32]),
 {
-    let mut path = vec!["start"];
+    let mut path = vec![start];
     let mut choices = vec![0];
 
     while let Some(cur) = path.last() {
         let cur = *cur;
-        if cur == "end" {
+        if cur == end {
             //eprintln!("{:?}", path);
             callback(&path);
 
@@ -51,7 +79,10 @@ where
             continue;
         }
 
-        let neighbours = graph.neighbours.get(cur).expect("node does not exist");
+        let neighbours = graph
+            .neighbours
+            .get(cur as usize)
+            .expect("node does not exist");
         let mut choice = choices
             .pop()
             .expect("must have one choice entry per path entry");
@@ -60,7 +91,7 @@ where
         while choice < neighbours.len() {
             let next = neighbours[choice];
 
-            if visited.visit(next) {
+            if next != start && (graph.is_large_cave(next) || visited.visit(next)) {
                 // Update this choice
                 choices.push(choice + 1);
                 // Prepare next choice
@@ -83,64 +114,64 @@ where
     }
 }
 
-trait Visitor<'a> {
-    fn visit(&mut self, vertex: &'a str) -> bool;
-    fn unvisit(&mut self, vertex: &'a str);
+trait Visitor {
+    fn visit(&mut self, vertex: u32) -> bool;
+    fn unvisit(&mut self, vertex: u32);
+}
+
+struct SmallOnce {
+    visited: Vec<bool>,
+}
+
+impl SmallOnce {
+    fn new(count: usize) -> Self {
+        Self {
+            visited: vec![false; count],
+        }
+    }
+}
+
+impl Visitor for SmallOnce {
+    fn visit(&mut self, vertex: u32) -> bool {
+        !std::mem::replace(&mut self.visited[vertex as usize], true)
+    }
+
+    fn unvisit(&mut self, vertex: u32) {
+        self.visited[vertex as usize] = false
+    }
 }
 
 #[derive(Default)]
-struct SmallOnce<'a> {
-    visited: HashSet<&'a str>,
+struct SmallOnceTwice {
+    visited: Vec<bool>,
+    visited_twice: Option<u32>,
 }
 
-impl<'a> Visitor<'a> for SmallOnce<'a> {
-    fn visit(&mut self, vertex: &'a str) -> bool {
-        if vertex == "start" {
-            // already visited
-            false
-        } else if is_large_cave(vertex) {
+impl SmallOnceTwice {
+    fn new(count: usize) -> Self {
+        Self {
+            visited: vec![false; count],
+            visited_twice: None,
+        }
+    }
+}
+
+impl Visitor for SmallOnceTwice {
+    fn visit(&mut self, vertex: u32) -> bool {
+        let already_visited = std::mem::replace(&mut self.visited[vertex as usize], true);
+        if already_visited && self.visited_twice.is_none() {
+            self.visited_twice = Some(vertex);
             true
         } else {
-            self.visited.insert(vertex)
+            !already_visited
         }
     }
 
-    fn unvisit(&mut self, vertex: &str) {
-        self.visited.remove(vertex);
-    }
-}
-
-#[derive(Default)]
-struct SmallOnceTwice<'a> {
-    visited: HashSet<&'a str>,
-    visited_twice: Option<&'a str>,
-}
-
-impl<'a> Visitor<'a> for SmallOnceTwice<'a> {
-    fn visit(&mut self, vertex: &'a str) -> bool {
-        if vertex == "start" {
-            // already visited
-            false
-        } else if is_large_cave(vertex) {
-            true
-        } else {
-            let visited_first_time = self.visited.insert(vertex);
-            if visited_first_time {
-                true
-            } else if self.visited_twice.is_none() {
-                self.visited_twice = Some(vertex);
-                true
-            } else {
-                false
-            }
-        }
-    }
-
-    fn unvisit(&mut self, vertex: &str) {
+    fn unvisit(&mut self, vertex: u32) {
         if self.visited_twice == Some(vertex) {
             self.visited_twice = None;
         } else {
-            self.visited.remove(vertex);
+            self.visited[vertex as usize] = false;
         }
     }
 }
@@ -154,8 +185,9 @@ fn p_graph(input: &[u8]) -> IResult<&[u8], Graph> {
         terminated(separated_pair(p_node, tag("-"), p_node), parsers::newline),
         Graph::default,
         |mut graph, (node1, node2)| {
-            graph.neighbours.entry(node1).or_default().push(node2);
-            graph.neighbours.entry(node2).or_default().push(node1);
+            let id1 = graph.node(node1);
+            let id2 = graph.node(node2);
+            graph.add_edge(id1, id2);
             graph
         },
     )(input)
@@ -169,13 +201,29 @@ fn p_node(input: &[u8]) -> IResult<&[u8], &str> {
 
 #[derive(Default)]
 struct Graph<'a> {
-    // TODO: make faster by using numeric vertex IDs
-    neighbours: HashMap<&'a str, Vec<&'a str>>,
+    vertices: HashMap<&'a str, u32>,
+    neighbours: Vec<Vec<u32>>,
+    is_large: Vec<bool>,
 }
 
 impl<'a> Graph<'a> {
-    fn new() -> Self {
-        Self::default()
+    fn node(&mut self, name: &'a str) -> u32 {
+        let next_id = self.vertices.len() as u32;
+        let id = *self.vertices.entry(name).or_insert(next_id);
+        if id == next_id {
+            self.neighbours.push(Vec::new());
+            self.is_large.push(is_large_cave(name));
+        }
+        id
+    }
+
+    fn add_edge(&mut self, n1: u32, n2: u32) {
+        self.neighbours[n1 as usize].push(n2);
+        self.neighbours[n2 as usize].push(n1);
+    }
+
+    fn is_large_cave(&self, next: u32) -> bool {
+        self.is_large[next as usize]
     }
 }
 
