@@ -70,7 +70,66 @@ pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
 pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
     let graph = parsers::parse(p_graph, input)?;
 
-    todo!();
+    let mut path = vec!["start"];
+    let mut choices = vec![0];
+    let mut visited: HashSet<&str> = HashSet::new();
+    let mut visited_twice = None;
+
+    let mut num_paths = 0;
+
+    while let Some(cur) = path.last() {
+        let cur = *cur;
+        if cur == "end" {
+            //eprintln!("{:?}", path);
+            num_paths += 1;
+
+            visited.remove(cur);
+            path.pop();
+            choices.pop();
+            continue;
+        }
+
+        let neighbours = graph.neighbours.get(cur).expect("node does not exist");
+        let mut choice = choices
+            .pop()
+            .expect("must have one choice entry per path entry");
+
+        let mut had_choice = false;
+        while choice < neighbours.len() {
+            let next = neighbours[choice];
+
+            if next == "start" || (visited.contains(next) && !is_large_cave(next)) {
+                if next != "start" && visited_twice.is_none() {
+                    visited_twice = Some(next);
+                } else {
+                    // already was there
+                    choice += 1;
+                    continue;
+                }
+            }
+
+            // Update this choice
+            choices.push(choice + 1);
+            // Prepare next choice
+            choices.push(0);
+
+            visited.insert(next);
+            path.push(next);
+            had_choice = true;
+            break;
+        }
+        if !had_choice {
+            if visited_twice == Some(cur) {
+                visited_twice = None;
+            } else {
+                visited.remove(cur);
+            }
+            // Choices exhausted, also pop current cave
+            path.pop();
+        }
+    }
+
+    Ok(num_paths)
 }
 
 fn is_large_cave(name: &str) -> bool {
@@ -97,6 +156,7 @@ fn p_node(input: &[u8]) -> IResult<&[u8], &str> {
 
 #[derive(Default)]
 struct Graph<'a> {
+    // TODO: make faster by using numeric vertex IDs
     neighbours: HashMap<&'a str, Vec<&'a str>>,
 }
 
