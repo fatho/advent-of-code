@@ -56,18 +56,14 @@ fn fold(fold: Fold, points: &mut [Point]) {
     match fold {
         Fold::X(xfold) => {
             for p in points.iter_mut() {
-                if p.x > xfold {
-                    // reflect at xfold
-                    p.x = xfold - (p.x - xfold)
-                }
+                let fold = (p.x > xfold) as i32;
+                p.x -= (fold * (2 * (p.x as i32 - xfold as i32))) as u32;
             }
         }
         Fold::Y(yfold) => {
             for p in points.iter_mut() {
-                if p.y > yfold {
-                    // reflect at yfold
-                    p.y = yfold - (p.y - yfold)
-                }
+                let fold = (p.y > yfold) as i32;
+                p.y -= (fold * (2 * (p.y as i32 - yfold as i32))) as u32;
             }
         }
     }
