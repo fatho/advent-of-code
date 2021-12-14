@@ -10,7 +10,7 @@ use nom::sequence::terminated;
 use nom::IResult;
 pub static RUN: Day = Day { part1, part2 };
 
-pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
+pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     let mut map = parsers::parse(p_map, input)?;
 
     let mut flashes = 0;
@@ -19,10 +19,10 @@ pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
         flashes += flash_step(&mut map, &mut flash_stack);
     }
 
-    Ok(flashes as i64)
+    Ok(format!("{}", flashes))
 }
 
-pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
+pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     let mut map = parsers::parse(p_map, input)?;
 
     let mut flash_stack = Vec::new();
@@ -37,7 +37,7 @@ pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
         }
     }
 
-    Ok(step)
+    Ok(format!("{}", step))
 }
 
 fn flash_step(map: &mut Map<u8>, flash_stack: &mut Vec<(u32, u32)>) -> u32 {
@@ -163,4 +163,4 @@ impl<T> IndexMut<(u32, u32)> for Map<T> {
     }
 }
 
-crate::test_day!(crate::day11::RUN, "day11", 1588, 517);
+crate::test_day!(crate::day11::RUN, "day11", "1588", "517");

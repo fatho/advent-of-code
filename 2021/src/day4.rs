@@ -11,7 +11,7 @@ use crate::{parsers, Day};
 
 pub static RUN: Day = Day { part1, part2 };
 
-pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
+pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     let mut bingo = parsers::parse(p_bingo, input)?;
 
     let mut win = None;
@@ -27,13 +27,13 @@ pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
     }
 
     if let Some((sum, last_draw)) = win {
-        Ok((sum * last_draw) as i64)
+        Ok(format!("{}", sum * last_draw))
     } else {
         bail!("no win")
     }
 }
 
-pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
+pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     let mut bingo = parsers::parse(p_bingo, input)?;
 
     let mut last_win = None;
@@ -56,7 +56,7 @@ pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
     }
 
     if let Some((sum, last_draw)) = last_win {
-        Ok((sum * last_draw) as i64)
+        Ok(format!("{}", sum * last_draw))
     } else {
         bail!("no win")
     }
@@ -190,4 +190,4 @@ impl Board {
     }
 }
 
-crate::test_day!(crate::day4::RUN, "day4", 72770, 13912);
+crate::test_day!(crate::day4::RUN, "day4", "72770", "13912");

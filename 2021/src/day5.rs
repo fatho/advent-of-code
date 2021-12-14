@@ -8,7 +8,7 @@ use crate::{parsers, Day};
 
 pub static RUN: Day = Day { part1, part2 };
 
-pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
+pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     let lines = parsers::parse(many0(terminated(Line::parse, parsers::newline)), input)?;
 
     let (max_x, max_y) = lines_extent(&lines);
@@ -21,10 +21,10 @@ pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
         }
     }
 
-    Ok(map.count_danger() as i64)
+    Ok(format!("{}", map.count_danger()))
 }
 
-pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
+pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     let lines = parsers::parse(many0(terminated(Line::parse, parsers::newline)), input)?;
 
     let (max_x, max_y) = lines_extent(&lines);
@@ -35,7 +35,7 @@ pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
         line.points().for_each(|p| map.add_point(p));
     }
 
-    Ok(map.count_danger() as i64)
+    Ok(format!("{}", map.count_danger()))
 }
 
 fn lines_extent(lines: &[Line]) -> (i32, i32) {
@@ -160,4 +160,4 @@ impl Line {
     }
 }
 
-crate::test_day!(crate::day5::RUN, "day5", 7644, 18627);
+crate::test_day!(crate::day5::RUN, "day5", "7644", "18627");

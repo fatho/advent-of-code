@@ -8,20 +8,20 @@ use nom::sequence::terminated;
 use nom::IResult;
 pub static RUN: Day = Day { part1, part2 };
 
-pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
+pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     let crab_counts = parse_crabs(input)?;
 
     let best_fuel = compute_fuel::<2>(&crab_counts);
 
-    Ok(best_fuel as i64)
+    Ok(format!("{}", best_fuel))
 }
 
-pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
+pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     let crab_counts = parse_crabs(input)?;
 
     let best_fuel = compute_fuel::<3>(&crab_counts);
 
-    Ok(best_fuel as i64)
+    Ok(format!("{}", best_fuel))
 }
 
 fn compute_fuel<const ORDER: usize>(crab_counts: &[u32]) -> u64 {
@@ -78,4 +78,4 @@ fn parse_crabs(input: &[u8]) -> Result<Vec<u32>, anyhow::Error> {
     Ok(crab_counts)
 }
 
-crate::test_day!(crate::day7::RUN, "day7", 347509, 98257206);
+crate::test_day!(crate::day7::RUN, "day7", "347509", "98257206");

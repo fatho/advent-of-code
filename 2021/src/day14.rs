@@ -10,7 +10,7 @@ use nom::sequence::{separated_pair, terminated};
 use nom::IResult;
 pub static RUN: Day = Day { part1, part2 };
 
-pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
+pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     let (template, rules) = parsers::parse(p_instructions, input)?;
 
     fn pair_index(pair: [u8; 2]) -> usize {
@@ -77,10 +77,10 @@ pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
         }
     });
 
-    Ok((largest / 2 - smallest / 2) as i64)
+    Ok(format!("{}", largest / 2 - smallest / 2))
 }
 
-pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
+pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     let (template, rules) = parsers::parse(p_instructions, input)?;
 
     // TODO: extract the parts common with part1
@@ -146,7 +146,7 @@ pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
         }
     });
 
-    Ok(largest / 2 - smallest / 2)
+    Ok(format!("{}", largest / 2 - smallest / 2))
 }
 
 fn p_instructions(input: &[u8]) -> IResult<&[u8], (&[u8], Vec<Rule>)> {
@@ -186,4 +186,4 @@ struct Rule {
     output: u8,
 }
 
-crate::test_day!(crate::day14::RUN, "day14", 2851, 10002813279337);
+crate::test_day!(crate::day14::RUN, "day14", "2851", "10002813279337");

@@ -58,13 +58,13 @@ pub struct AocOpt {
 
 #[derive(Clone, Copy)]
 pub struct Day {
-    pub part1: fn(&[u8]) -> anyhow::Result<i64>,
-    pub part2: fn(&[u8]) -> anyhow::Result<i64>,
+    pub part1: fn(&[u8]) -> anyhow::Result<String>,
+    pub part2: fn(&[u8]) -> anyhow::Result<String>,
 }
 
 impl Day {
     pub fn unsolved() -> Self {
-        fn no_solution(_: &[u8]) -> anyhow::Result<i64> {
+        fn no_solution(_: &[u8]) -> anyhow::Result<String> {
             anyhow::bail!("no solution for this day");
         }
         Self {

@@ -8,7 +8,7 @@ use nom::sequence::terminated;
 use nom::IResult;
 pub static RUN: Day = Day { part1, part2 };
 
-pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
+pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     let map = parsers::parse(p_map, input)?;
 
     let mut total_risk = 0;
@@ -21,10 +21,10 @@ pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
         }
     }
 
-    Ok(total_risk as i64)
+    Ok(format!("{}", total_risk))
 }
 
-pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
+pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     let map = parsers::parse(p_map, input)?;
 
     // find low points as starting locations
@@ -63,7 +63,7 @@ pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
     let (top3, _, _) = basin_sizes.select_nth_unstable_by(3, |b1, b2| b2.cmp(b1));
     let result: u32 = top3.iter().product();
 
-    Ok(result as i64)
+    Ok(format!("{}", result))
 }
 
 fn p_map(input: &[u8]) -> IResult<&[u8], Map<u8>> {
@@ -149,4 +149,4 @@ where
     }
 }
 
-crate::test_day!(crate::day9::RUN, "day9", 500, 970200);
+crate::test_day!(crate::day9::RUN, "day9", "500", "970200");

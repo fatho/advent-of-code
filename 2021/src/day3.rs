@@ -9,7 +9,7 @@ use std::cmp::Ordering;
 
 pub static RUN: Day = Day { part1, part2 };
 
-pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
+pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     parsers::parse(
         flat_map(
             map(
@@ -34,7 +34,7 @@ pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
                     ),
                     |counts| {
                         let (epsilon, gamma) = counts.epsilon_gamma();
-                        (epsilon * gamma) as i64
+                        format!("{}", epsilon * gamma)
                     },
                 )
             },
@@ -43,7 +43,7 @@ pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
     )
 }
 
-pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
+pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     parsers::parse(
         flat_map(terminated(BinaryLen::parse, parsers::newline), |first| {
             map(
@@ -66,7 +66,7 @@ pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
                     let o2 = o2_candidates[0];
                     let co2 = co2_candidates[0];
 
-                    (o2 * co2) as i64
+                    format!("{}", o2 * co2)
                 },
             )
         }),
@@ -164,4 +164,4 @@ pub fn parse_bin(input: &[u8]) -> IResult<&[u8], u32> {
     })(input)
 }
 
-crate::test_day!(crate::day3::RUN, "day3", 4147524, 3570354);
+crate::test_day!(crate::day3::RUN, "day3", "4147524", "3570354");

@@ -11,17 +11,17 @@ use nom::sequence::{preceded, separated_pair, terminated};
 use nom::IResult;
 pub static RUN: Day = Day { part1, part2 };
 
-pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
+pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     let (mut points, folds) = parsers::parse(p_instructions, input)?;
 
     fold(folds[0], &mut points);
 
     let distinct = points.into_iter().collect::<HashSet<_>>();
 
-    Ok(distinct.len() as i64)
+    Ok(format!("{}", distinct.len()))
 }
 
-pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
+pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     let (mut points, folds) = parsers::parse(p_instructions, input)?;
 
     for f in folds.iter() {
@@ -30,26 +30,26 @@ pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
         fold(*f, &mut points);
     }
 
-    render(&points);
-
-    todo!("allow plain string return values from runners");
+    Ok(render(&points))
 }
 
-fn render(points: &[Point]) {
+fn render(points: &[Point]) -> String {
     let lookup = points.iter().copied().collect::<HashSet<_>>();
     let (max_x, max_y) = points
         .iter()
         .fold((0, 0), |(mx, my), p| (mx.max(p.x), my.max(p.y)));
+    let mut result = String::new();
     for y in 0..=max_y {
         for x in 0..=max_x {
             if lookup.contains(&Point { x, y }) {
-                print!("#");
+                result.push('#');
             } else {
-                print!(".");
+                result.push('.');
             }
         }
-        println!()
+        result.push('\n');
     }
+    result
 }
 
 fn fold(fold: Fold, points: &mut [Point]) {
@@ -114,4 +114,15 @@ struct Point {
     y: u32,
 }
 
-crate::test_day!(crate::day13::RUN, "day13", 0, 0);
+crate::test_day!(
+    crate::day13::RUN,
+    "day13",
+    "708",
+    r"####.###..#....#..#.###..###..####.#..#
+#....#..#.#....#..#.#..#.#..#.#....#..#
+###..###..#....#..#.###..#..#.###..####
+#....#..#.#....#..#.#..#.###..#....#..#
+#....#..#.#....#..#.#..#.#.#..#....#..#
+####.###..####..##..###..#..#.#....#..#
+"
+);

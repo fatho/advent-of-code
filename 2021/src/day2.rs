@@ -11,7 +11,7 @@ use crate::{parsers, Day};
 
 pub static RUN: Day = Day { part1, part2 };
 
-pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
+pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     parsers::parse(
         map(
             fold_many0(
@@ -23,13 +23,13 @@ pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
                     CtrlDir::Forward => (depth, x + cmd.amount),
                 },
             ),
-            |(depth, x)| depth * x,
+            |(depth, x)| format!("{}", depth * x),
         ),
         input,
     )
 }
 
-pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
+pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     parsers::parse(
         map(
             fold_many0(
@@ -41,7 +41,7 @@ pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
                     CtrlDir::Forward => (aim, depth + aim * cmd.amount, x + cmd.amount),
                 },
             ),
-            |(_, depth, x)| depth * x,
+            |(_, depth, x)| format!("{}", depth * x),
         ),
         input,
     )
@@ -78,4 +78,4 @@ impl CtrlCmd {
     }
 }
 
-crate::test_day!(crate::day2::RUN, "day2", 1507611, 1880593125);
+crate::test_day!(crate::day2::RUN, "day2", "1507611", "1880593125");

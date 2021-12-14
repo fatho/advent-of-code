@@ -12,7 +12,7 @@ use nom::sequence::{separated_pair, terminated};
 use nom::IResult;
 pub static RUN: Day = Day { part1, part2 };
 
-pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
+pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     let graph = parsers::parse(p_graph, input)?;
 
     let mut num_paths = 0;
@@ -30,10 +30,10 @@ pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
         |_| num_paths += 1,
     );
 
-    Ok(num_paths)
+    Ok(format!("{}", num_paths))
 }
 
-pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
+pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     let graph = parsers::parse(p_graph, input)?;
 
     let mut num_paths = 0;
@@ -51,7 +51,7 @@ pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
         |_| num_paths += 1,
     );
 
-    Ok(num_paths)
+    Ok(format!("{}", num_paths))
 }
 
 /// Brute force DFS solution for the problem. This might not be the most
@@ -227,4 +227,4 @@ impl<'a> Graph<'a> {
     }
 }
 
-crate::test_day!(crate::day12::RUN, "day12", 3802, 99448);
+crate::test_day!(crate::day12::RUN, "day12", "3802", "99448");

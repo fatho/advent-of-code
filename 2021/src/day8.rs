@@ -11,7 +11,7 @@ use nom::sequence::{preceded, separated_pair, terminated};
 use nom::IResult;
 pub static RUN: Day = Day { part1, part2 };
 
-pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
+pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     let entries = parsers::parse(many0(terminated(p_entry, parsers::newline)), input)?;
 
     // 1: 2 segments
@@ -25,10 +25,10 @@ pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
         .filter(|p| matches!(p.count_set(), 2 | 3 | 4 | 7))
         .count();
 
-    Ok(num_unique as i64)
+    Ok(format!("{}", num_unique))
 }
 
-pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
+pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     let entries = parsers::parse(many0(terminated(p_entry, parsers::newline)), input)?;
 
     let mut result = 0;
@@ -46,7 +46,7 @@ pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
         result += num;
     }
 
-    Ok(result as i64)
+    Ok(format!("{}", result))
 }
 
 fn p_pattern(input: &[u8]) -> IResult<&[u8], Pattern> {
@@ -286,4 +286,4 @@ impl Display for Pattern {
     }
 }
 
-crate::test_day!(crate::day8::RUN, "day8", 278, 986179);
+crate::test_day!(crate::day8::RUN, "day8", "278", "986179");

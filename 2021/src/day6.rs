@@ -11,15 +11,15 @@ use std::cmp::Ordering;
 
 pub static RUN: Day = Day { part1, part2 };
 
-pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
+pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     parse_and_sim(input, 80)
 }
 
-pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
+pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     parse_and_sim(input, 256)
 }
 
-fn parse_and_sim(input: &[u8], num_days: u32) -> Result<i64, anyhow::Error> {
+fn parse_and_sim(input: &[u8], num_days: u32) -> anyhow::Result<String> {
     let fish_ages = parsers::parse(
         terminated(
             separated_list0(tag(","), parsers::u32),
@@ -27,7 +27,7 @@ fn parse_and_sim(input: &[u8], num_days: u32) -> Result<i64, anyhow::Error> {
         ),
         input,
     )?;
-    Ok(simulate(&fish_ages, num_days) as i64)
+    Ok(format!("{}", simulate(&fish_ages, num_days)))
 }
 
 fn simulate(fish_ages: &[u32], num_days: u32) -> u64 {
@@ -86,4 +86,4 @@ impl Population {
     }
 }
 
-crate::test_day!(crate::day6::RUN, "day6", 395627, 1767323539209);
+crate::test_day!(crate::day6::RUN, "day6", "395627", "1767323539209");

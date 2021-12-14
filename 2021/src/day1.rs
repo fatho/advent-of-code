@@ -1,5 +1,5 @@
 use nom::{
-    combinator::flat_map,
+    combinator::{flat_map, map},
     multi::{fold_many0, fold_many_m_n},
     sequence::terminated,
 };
@@ -9,15 +9,15 @@ use std::{cmp::Ordering, collections::VecDeque};
 
 pub static RUN: Day = Day { part1, part2 };
 
-pub fn part1(input: &[u8]) -> anyhow::Result<i64> {
+pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     day1_impl(input, 1)
 }
 
-pub fn part2(input: &[u8]) -> anyhow::Result<i64> {
+pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     day1_impl(input, 3)
 }
 
-fn day1_impl(input: &[u8], window_size: usize) -> anyhow::Result<i64> {
+fn day1_impl(input: &[u8], window_size: usize) -> anyhow::Result<String> {
     parsers::parse(
         flat_map(
             // first fill the scanning buffer
@@ -33,16 +33,19 @@ fn day1_impl(input: &[u8], window_size: usize) -> anyhow::Result<i64> {
             ),
             // then switch to scanning mode
             |mut sonar| {
-                fold_many0(
-                    terminated(parsers::i32, parsers::newline),
-                    || 0,
-                    move |increases, item| {
-                        if sonar.push_scan(item) == Ordering::Greater {
-                            increases + 1
-                        } else {
-                            increases
-                        }
-                    },
+                map(
+                    fold_many0(
+                        terminated(parsers::i32, parsers::newline),
+                        || 0,
+                        move |increases, item| {
+                            if sonar.push_scan(item) == Ordering::Greater {
+                                increases + 1
+                            } else {
+                                increases
+                            }
+                        },
+                    ),
+                    |count| format!("{}", count),
                 )
             },
         ),
@@ -72,4 +75,4 @@ impl Sonar {
     }
 }
 
-crate::test_day!(crate::day1::RUN, "day1", 1527, 1575);
+crate::test_day!(crate::day1::RUN, "day1", "1527", "1575");
