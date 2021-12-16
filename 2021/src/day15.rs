@@ -149,4 +149,4 @@ impl<T> IndexMut<(u32, u32)> for Map<T> {
     }
 }
 
-crate::test_day!(crate::day15::RUN, "day15", "not solved", "not solved");
+crate::test_day!(crate::day15::RUN, "day15", "592", "2897");
