@@ -1,17 +1,15 @@
 //! Various nom parsers that are often useful
 
-use nom::{
-    bytes::complete::tag,
-    character::complete::digit1,
-    combinator::map,
-    IResult,
-};
+use nom::{bytes::complete::tag, character::complete::digit1, combinator::map, IResult};
 
 macro_rules! parse_int {
     ($name:ident) => {
         pub fn $name(input: &[u8]) -> IResult<&[u8], $name> {
             map(digit1, |digits: &[u8]| {
-                digits.iter().map(|d| d - b'0').fold(0, |acc, d| acc * 10 + d as $name)
+                digits
+                    .iter()
+                    .map(|d| d - b'0')
+                    .fold(0, |acc, d| acc * 10 + d as $name)
             })(input)
         }
     };
@@ -19,6 +17,7 @@ macro_rules! parse_int {
 
 parse_int!(i32);
 parse_int!(i64);
+
 parse_int!(u8);
 parse_int!(u32);
 parse_int!(u64);
