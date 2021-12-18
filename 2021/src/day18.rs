@@ -24,7 +24,19 @@ pub fn part1(input: &[u8]) -> anyhow::Result<String> {
 
 pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     let nums = parsers::parse(many0(terminated(p_num, parsers::newline)), input)?;
-    todo!();
+
+    let result = nums
+        .iter()
+        .flat_map(|l| nums.iter().map(move |r| (l, r)))
+        .map(|(l, r)| add(l.clone(), r.clone()))
+        .map(|mut x| {
+            x.reduce();
+            x.magnitude()
+        })
+        .max()
+        .unwrap();
+
+    Ok(result.to_string())
 }
 
 fn add(a: Num, b: Num) -> Num {
@@ -142,4 +154,4 @@ impl Display for Num {
     }
 }
 
-crate::test_day!(crate::day18::RUN, "day18", "4289", "not solved");
+crate::test_day!(crate::day18::RUN, "day18", "4289", "4807");
