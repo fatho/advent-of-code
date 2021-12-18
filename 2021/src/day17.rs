@@ -101,4 +101,4 @@ struct Target {
     y: RangeInclusive<i32>,
 }
 
-crate::test_day!(crate::day17::RUN, "day17", "not solved", "not solved");
+// TODO: way to slow crate::test_day!(crate::day17::RUN, "day17", "7750", "4120");
