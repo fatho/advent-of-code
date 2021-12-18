@@ -53,6 +53,7 @@ fn p_num(input: &[u8]) -> IResult<&[u8], Num> {
     ))(input)
 }
 
+// TODO: use better representation for faster operations
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Num {
     Reg(i64),
