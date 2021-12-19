@@ -1,8 +1,10 @@
 #![allow(unused_imports)]
 
-use std::ops::{Add, Mul};
+use std::collections::HashSet;
+use std::ops::{Add, Mul, Sub};
 
 use crate::{parsers, Day};
+use anyhow::Context;
 use nom::bytes::complete::{tag, take_while};
 use nom::character::complete as numbers;
 use nom::combinator::{flat_map, map};
@@ -11,18 +13,95 @@ use nom::sequence::{delimited, pair, terminated, tuple};
 use nom::IResult;
 pub static RUN: Day = Day { part1, part2 };
 
-pub fn part1(input: &[u8]) -> anyhow::Result<String> {
-    let scanners = parsers::parse(p_input, input)?;
-    println!("{:?}", scanners);
+// TODO: definitely needs a performance upgrade
 
-    todo!()
+pub fn part1(input: &[u8]) -> anyhow::Result<String> {
+    let mut scanners = parsers::parse(p_input, input)?;
+    //println!("{:?}", scanners);
+
+    let ref_scanner = scanners.pop().context("must have at leat one scanner")?;
+    let mut absolute_points = ref_scanner.points.iter().copied().collect::<HashSet<_>>();
+
+    while !scanners.is_empty() {
+        for i in (0..scanners.len()).rev() {
+            if let Some((o, off)) = match_scanner(&absolute_points, &scanners[i], 12) {
+                for p in scanners[i].points.iter() {
+                    absolute_points.insert(o.local_to_global(*p) + off);
+                }
+                scanners.swap_remove(i);
+            }
+        }
+        println!("{} remaining", scanners.len());
+    }
+    Ok(absolute_points.len().to_string())
+}
+
+fn match_scanner(
+    abs: &HashSet<Vec3>,
+    scanner: &Scanner,
+    threshold: u32,
+) -> Option<(Orientation, Vec3)> {
+    // check each orientation
+    for o in ORIENTATIONS {
+        // take each of the original points as reference point
+        for aref in abs {
+            // assuming it corresponds to each point from the scanner
+            for sref in scanner.points.iter() {
+                // Now check if the remaining points are consistent
+                let srot = o.local_to_global(*sref);
+                // Assumed offset
+                let offset = *aref - srot;
+
+                let mut matches = 0;
+                for spoint in scanner.points.iter() {
+                    let spoint_as_abs = o.local_to_global(*spoint) + offset;
+                    // TODO: faster lookup
+                    if abs.contains(&spoint_as_abs) {
+                        matches += 1;
+                    }
+                }
+                if matches >= threshold {
+                    return Some((o, offset));
+                }
+            }
+        }
+    }
+    None
 }
 
 pub fn part2(input: &[u8]) -> anyhow::Result<String> {
-    let scanners = parsers::parse(p_input, input)?;
-    println!("{:?}", scanners);
+    let mut scanners = parsers::parse(p_input, input)?;
+    //println!("{:?}", scanners);
 
-    todo!()
+    let mut scanner_positions = Vec::new();
+    let ref_scanner = scanners.pop().context("must have at leat one scanner")?;
+    scanner_positions.push(Vec3::new(0, 0, 0));
+    let mut absolute_points = ref_scanner.points.iter().copied().collect::<HashSet<_>>();
+
+    while !scanners.is_empty() {
+        for i in (0..scanners.len()).rev() {
+            if let Some((o, off)) = match_scanner(&absolute_points, &scanners[i], 12) {
+                for p in scanners[i].points.iter() {
+                    absolute_points.insert(o.local_to_global(*p) + off);
+                }
+                scanners.swap_remove(i);
+                scanner_positions.push(off);
+            }
+        }
+        println!("{} remaining", scanners.len());
+    }
+
+    let mut largest = 0;
+    for i in 0..scanner_positions.len() - 1 {
+        for j in i..scanner_positions.len() {
+            let delta = scanner_positions[i] - scanner_positions[j];
+            let manhattan = delta.x.abs() + delta.y.abs() + delta.z.abs();
+            if manhattan > largest {
+                largest = manhattan;
+            }
+        }
+    }
+    Ok(largest.to_string())
 }
 
 fn p_input(input: &[u8]) -> IResult<&[u8], Vec<Scanner>> {
@@ -48,7 +127,7 @@ fn p_relpnt(input: &[u8]) -> IResult<&[u8], Vec3> {
     )(input)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct Vec3 {
     x: i32,
     y: i32,
@@ -85,6 +164,18 @@ impl Add for Vec3 {
     }
 }
 
+impl Sub for Vec3 {
+    type Output = Vec3;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Vec3 {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+            z: self.z - rhs.z,
+        }
+    }
+}
+
 impl Mul<i32> for Vec3 {
     type Output = Vec3;
 
@@ -103,7 +194,7 @@ struct Scanner {
     points: Vec<Vec3>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Orientation {
     fwd: Vec3,
     up: Vec3,
