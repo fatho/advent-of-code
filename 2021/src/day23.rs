@@ -23,42 +23,74 @@ pub fn part1(input: &[u8]) -> anyhow::Result<String> {
 
     // panic!();
 
-    let mut least_cost = u32::MAX;
-    let mut moves = Vec::new();
-    let mut least_moves = Vec::new();
-    solve(&mut board, 0, &mut moves, &mut |moves, total_cost| {
-        least_cost = total_cost.min(least_cost);
-        least_moves = moves.to_owned();
-    });
+    // let mut least_cost = u32::MAX;
+    // let mut moves = Vec::new();
+    // let mut least_moves = Vec::new();
+    // solve(&mut board, 0, &mut moves, &mut |moves, total_cost| {
+    //     least_cost = total_cost.min(least_cost);
+    //     least_moves = moves.to_owned();
+    // });
 
-    for lm in least_moves {
-        println!("{:?}", lm);
-    }
+    // for lm in least_moves {
+    //     println!("{:?}", lm);
+    // }
+
+    // println!("{}", solve_iter(&mut board));
+
+    let least_cost = solve_iter(&mut board);
 
     Ok(least_cost.to_string())
 }
 
-fn solve<F: FnMut(&[Move], u32)>(
-    board: &mut Board,
-    total_cost: u32,
-    moves: &mut Vec<Move>,
-    callback: &mut F,
-) {
-    if board.is_done() {
-        callback(&moves, total_cost);
-        return;
+fn solve_iter(board: &mut Board) -> u32 {
+    let mut moves: Vec<Move> = Vec::new();
+    let mut allmoves = Vec::new();
+    board.compute_moves(&mut allmoves);
+    let mut choices = vec![0];
+
+    let mut current_total = 0;
+    let mut best_so_far = u32::MAX;
+
+    while let Some(last_move) = choices.last().copied() {
+        if allmoves.len() == last_move {
+            // nothing to do here anymore, undo move
+            if let Some(mov) = moves.pop() {
+                current_total -= mov.cost();
+                board.undo_move(&mov);
+            }
+            choices.pop();
+        } else {
+            let next = allmoves.pop().expect("must have move");
+            let cost = next.cost();
+            if current_total + cost > best_so_far {
+                continue;
+            }
+            // perform move
+            current_total += cost;
+            board.do_move(&next);
+            moves.push(next);
+
+            if board.is_done() {
+                // found solution
+                best_so_far = best_so_far.min(current_total);
+                // undo move
+                current_total -= cost;
+                board.undo_move(&next);
+                moves.pop();
+            } else {
+                // populate subsequent choices
+                let top = allmoves.len();
+                choices.push(top);
+                board.compute_moves(&mut allmoves);
+            }
+        }
     }
-    for mov in board.moves() {
-        board.do_move(&mov);
-        // for _ in 0..moves.len() {
-        //     print!("  ");
-        // }
-        // println!("{:?}", mov);
-        moves.push(mov);
-        solve(board, total_cost + mov.cost(), moves, callback);
-        moves.pop();
-        board.undo_move(&mov);
-    }
+
+    best_so_far
+}
+
+fn sort_moves(moves: &mut [Move]) {
+    moves.sort_by_key(|m| Reverse(m.cost()))
 }
 
 pub fn part2(input: &[u8]) -> anyhow::Result<String> {
@@ -76,6 +108,7 @@ fn parse(input: &[u8]) -> Board {
         } else {
             if let Some(color) = Color::from_ascii(*ch) {
                 board.fields[(x, y)] = Some(Field::Amphipod(color));
+                board.amphipods.push((x, y));
             }
 
             (x + 1, y)
@@ -154,6 +187,7 @@ fn manhattan((x1, y1): (u32, u32), (x2, y2): (u32, u32)) -> u32 {
 #[derive(Debug)]
 struct Board {
     fields: Map<Option<Field>>,
+    amphipods: Vec<(u32, u32)>,
 }
 
 impl Board {
@@ -169,121 +203,112 @@ impl Board {
         for i in 1..=11 {
             map[(i, 1)] = Some(Field::Hallway);
         }
-        Self { fields: map }
+        Self {
+            fields: map,
+            amphipods: vec![],
+        }
     }
 
-    pub fn moves(&self) -> Vec<Move> {
-        let mut moves = Vec::new();
-
-        for y in 0..self.fields.height {
-            for x in 0..self.fields.width {
-                if let Some(Field::Amphipod(color)) = self.fields[(x, y)] {
-                    // Find where it belongs
-                    let (zone_x, _) = Self::TARGET_ZONES
-                        .into_iter()
-                        .find(|(_, target_color)| *target_color == color)
-                        .unwrap();
-
-                    if y == 1 {
-                        // In hallway
-                        match (self.fields[(zone_x, 2)], self.fields[(zone_x, 3)]) {
-                            // Full
-                            (Some(Field::Amphipod(_)), Some(Field::Amphipod(_))) => {}
-                            // Half full
-                            (Some(Field::Hallway), Some(Field::Amphipod(other))) => {
-                                if other == color && self.path_to_cave_free(x, zone_x) {
-                                    // other has same color, so we can move in
-                                    moves.push(Move {
-                                        amphipod: color,
-                                        from: (x, y),
-                                        to: (zone_x, 2),
-                                    })
-                                }
+    pub fn compute_moves(&self, moves: &mut Vec<Move>) {
+        for (x, y) in self.amphipods.iter().copied() {
+            if let Some(Field::Amphipod(color)) = self.fields[(x, y)] {
+                // Find where it belongs
+                let zone_x = match color {
+                    Color::Amber => 3,
+                    Color::Bronze => 5,
+                    Color::Copper => 7,
+                    Color::Desert => 9,
+                };
+                if y == 1 {
+                    // In hallway
+                    match (self.fields[(zone_x, 2)], self.fields[(zone_x, 3)]) {
+                        // Full
+                        (Some(Field::Amphipod(_)), Some(Field::Amphipod(_))) => {}
+                        // Half full
+                        (Some(Field::Hallway), Some(Field::Amphipod(other))) => {
+                            if other == color && self.path_to_cave_free(x, zone_x) {
+                                // other has same color, so we can move in
+                                moves.push(Move {
+                                    amphipod: color,
+                                    from: (x, y),
+                                    to: (zone_x, 2),
+                                })
                             }
-                            // Empty
-                            (Some(Field::Hallway), Some(Field::Hallway)) => {
-                                if self.path_to_cave_free(x, zone_x) {
-                                    moves.push(Move {
-                                        amphipod: color,
-                                        from: (x, y),
-                                        to: (zone_x, 3),
-                                    })
-                                }
-                            }
-                            // Invalid states
-                            (t1, t2) => unreachable!(
-                                "should never have target zone configuration {:?} {:?}",
-                                t1, t2
-                            ),
                         }
-                    } else {
-                        // In a cave
+                        // Empty
+                        (Some(Field::Hallway), Some(Field::Hallway)) => {
+                            if self.path_to_cave_free(x, zone_x) {
+                                moves.push(Move {
+                                    amphipod: color,
+                                    from: (x, y),
+                                    to: (zone_x, 3),
+                                })
+                            }
+                        }
+                        // Invalid states
+                        (t1, t2) => unreachable!(
+                            "should never have target zone configuration {:?} {:?}",
+                            t1, t2
+                        ),
+                    }
+                } else {
+                    // In a cave
 
-                        // Sanity check: exit of a cave must always be free
-                        assert!(matches!(self.fields[(x, 1)], Some(Field::Hallway)));
+                    // Sanity check: exit of a cave must always be free
+                    debug_assert!(matches!(self.fields[(x, 1)], Some(Field::Hallway)));
 
-                        // cannot leave if there is one before
-                        if y == 3 && !matches!(self.fields[(x, 2)], Some(Field::Hallway)) {
+                    // cannot leave if there is one before
+                    if y == 3 && !matches!(self.fields[(x, 2)], Some(Field::Hallway)) {
+                        continue;
+                    }
+                    // if already in the right room, don't leave unless necessary
+                    if x == zone_x {
+                        if y == 3 {
+                            continue;
+                        } else if let Some(Field::Amphipod(other)) = self.fields[(x, 3)] {
+                            if other == color {
+                                continue;
+                            }
+                        } else {
                             continue;
                         }
-                        // if already in the right room, don't leave unless necessary
-                        if x == zone_x {
-                            if y == 3 {
-                                continue;
-                            } else if let Some(Field::Amphipod(other)) = self.fields[(x, 3)] {
-                                if other == color {
-                                    continue;
-                                }
-                            } else {
-                                continue;
-                            }
-                        }
+                    }
 
-                        // Check where we can go:
-                        for tx in x + 1..=11 {
-                            if matches!(self.fields[(tx, 1)], Some(Field::Hallway)) {
-                                if Self::TARGET_ZONES
-                                    .into_iter()
-                                    .find(|(zx, _)| *zx == tx)
-                                    .is_none()
-                                {
-                                    moves.push(Move {
-                                        amphipod: color,
-                                        from: (x, y),
-                                        to: (tx, 1),
-                                    })
-                                }
-                            } else {
-                                break;
+                    // Check where we can go:
+                    for tx in x + 1..=11 {
+                        if matches!(self.fields[(tx, 1)], Some(Field::Hallway)) {
+                            if !matches!(tx, 3 | 5 | 7 | 9) {
+                                moves.push(Move {
+                                    amphipod: color,
+                                    from: (x, y),
+                                    to: (tx, 1),
+                                })
                             }
+                        } else {
+                            break;
                         }
-                        for tx in (1..=x - 1).rev() {
-                            if matches!(self.fields[(tx, 1)], Some(Field::Hallway)) {
-                                if Self::TARGET_ZONES
-                                    .into_iter()
-                                    .find(|(zx, _)| *zx == tx)
-                                    .is_none()
-                                {
-                                    moves.push(Move {
-                                        amphipod: color,
-                                        from: (x, y),
-                                        to: (tx, 1),
-                                    })
-                                }
-                            } else {
-                                break;
+                    }
+                    for tx in (1..=x - 1).rev() {
+                        if matches!(self.fields[(tx, 1)], Some(Field::Hallway)) {
+                            if !matches!(tx, 3 | 5 | 7 | 9) {
+                                moves.push(Move {
+                                    amphipod: color,
+                                    from: (x, y),
+                                    to: (tx, 1),
+                                })
                             }
+                        } else {
+                            break;
                         }
                     }
                 }
             }
         }
-        moves
     }
 
     pub fn path_to_cave_free(&self, from_x: u32, cave_x: u32) -> bool {
         // source must be an amphipod
-        assert!(matches!(self.fields[(from_x, 1)], Some(Field::Amphipod(_))));
+        debug_assert!(matches!(self.fields[(from_x, 1)], Some(Field::Amphipod(_))));
 
         if from_x > cave_x {
             for x in (cave_x..from_x).rev() {
@@ -303,15 +328,19 @@ impl Board {
     }
 
     pub fn do_move(&mut self, mov: &Move) {
-        assert_eq!(self.fields[mov.from], Some(Field::Amphipod(mov.amphipod)));
+        debug_assert_eq!(self.fields[mov.from], Some(Field::Amphipod(mov.amphipod)));
         self.fields[mov.from] = Some(Field::Hallway);
         self.fields[mov.to] = Some(Field::Amphipod(mov.amphipod));
+        self.amphipods.retain(|pos| *pos != mov.from);
+        self.amphipods.push(mov.to);
     }
 
     pub fn undo_move(&mut self, mov: &Move) {
-        assert_eq!(self.fields[mov.to], Some(Field::Amphipod(mov.amphipod)));
+        debug_assert_eq!(self.fields[mov.to], Some(Field::Amphipod(mov.amphipod)));
         self.fields[mov.from] = Some(Field::Amphipod(mov.amphipod));
         self.fields[mov.to] = Some(Field::Hallway);
+        self.amphipods.retain(|pos| *pos != mov.to);
+        self.amphipods.push(mov.from);
     }
 
     pub fn is_done(&self) -> bool {
@@ -324,27 +353,6 @@ impl Board {
         }
         true
     }
-
-    // pub fn compute_path(&self, from: (u32, u32), to: (u32, u32)) -> Option<usize> {
-    //     // source must be an amphipod
-    //     assert!(matches!(self.fields[from], Some(Field::Amphipod(_))));
-    //     // check path
-    //     let mut queue = BinaryHeap::new();
-    //     queue.push((Reverse(0), from));
-    //     let mut state = Map::new(self.fields.width, self.fields.height, None);
-    //     state[from] = Some(0);
-
-    //     while let Some((Reverse(cur_dist), cur_pos)) = queue.pop() {
-    //         for (npos, val) in self.fields.neighbours_with_index(cur_pos.0, cur_pos.1) {
-    //             if matches!(val, Some(Field::Hallway)) {
-    //                 state[npos] = Some(cur_dist + 1);
-    //                 queue.push((Reverse(cur_dist + 1), npos));
-    //             }
-    //         }
-    //     }
-
-    //     state[to]
-    // }
 }
 
 impl Display for Board {
@@ -410,15 +418,17 @@ where
 impl<T> Index<(u32, u32)> for Map<T> {
     type Output = T;
 
+    #[inline]
     fn index(&self, index: (u32, u32)) -> &Self::Output {
         &self.data[(index.0 + index.1 * self.width) as usize]
     }
 }
 
 impl<T> IndexMut<(u32, u32)> for Map<T> {
+    #[inline]
     fn index_mut(&mut self, index: (u32, u32)) -> &mut Self::Output {
         &mut self.data[(index.0 + index.1 * self.width) as usize]
     }
 }
 
-crate::test_day!(crate::day23::RUN, "day23", "not solved", "not solved");
+crate::test_day!(crate::day23::RUN, "day23", "14460", "not solved");
