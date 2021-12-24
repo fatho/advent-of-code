@@ -1,19 +1,188 @@
 #![allow(unused_imports)]
 
 use crate::{parsers, Day};
-use nom::bytes::complete::take_while;
+use nom::branch::alt;
+use nom::bytes::complete::{tag, take_while};
+use nom::character::complete as numbers;
+use nom::character::complete::one_of;
 use nom::combinator::{flat_map, map};
-use nom::multi::fold_many0;
-use nom::sequence::terminated;
+use nom::multi::{fold_many0, many0};
+use nom::sequence::{preceded, terminated, tuple};
 use nom::IResult;
 pub static RUN: Day = Day { part1, part2 };
 
 pub fn part1(input: &[u8]) -> anyhow::Result<String> {
-    parsers::parse(|_| Ok((b"", "not solved".to_owned())), input)
+    let validator = parsers::parse(p_prog, input)?;
+    // let input = &[1, 3, 5, 7, 9, 2, 4, 6, 8, 9, 9, 9, 9, 9];
+
+    // println!("{:?}", run(&validator, input));
+
+    let mut input = [9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9];
+
+    for i in (0..input.len()).rev() {
+        while input[i] > 0 {
+            let out = run(&validator, &input);
+            if out[Var::Z.index()] == 0 {
+                break;
+            } else {
+                input[i] -= 1;
+            }
+        }
+        if input[i] == 0 {
+            input[i] = 9;
+        }
+    }
+
+    println!("{:?}", input);
+
+    todo!()
 }
 
 pub fn part2(input: &[u8]) -> anyhow::Result<String> {
-    parsers::parse(|_| Ok((b"", "not solved".to_owned())), input)
+    let validator = parsers::parse(p_prog, input)?;
+
+    todo!()
+}
+
+fn p_prog(input: &[u8]) -> IResult<&[u8], Vec<Inst>> {
+    many0(terminated(p_inst, parsers::newline))(input)
+}
+
+fn p_inst(input: &[u8]) -> IResult<&[u8], Inst> {
+    alt((
+        preceded(tag("inp "), map(p_var, Inst::Inp)),
+        p_binop("add", Inst::Add),
+        p_binop("mul", Inst::Mul),
+        p_binop("div", Inst::Div),
+        p_binop("mod", Inst::Mod),
+        p_binop("eql", Inst::Eql),
+    ))(input)
+}
+
+fn p_binop(
+    name: &'static str,
+    make: impl Fn(Var, Operand) -> Inst,
+) -> impl for<'a> Fn(&'a [u8]) -> IResult<&'a [u8], Inst> {
+    move |input: &[u8]| {
+        map(
+            tuple((tag(name), tag(" "), p_var, tag(" "), p_operand)),
+            |(_, _, a, _, b)| make(a, b),
+        )(input)
+    }
+}
+
+fn p_operand(input: &[u8]) -> IResult<&[u8], Operand> {
+    alt((map(p_var, Operand::Var), map(numbers::i64, Operand::Val)))(input)
+}
+
+fn p_var(input: &[u8]) -> IResult<&[u8], Var> {
+    map(one_of("wxyz"), |ch| match ch {
+        'w' => Var::W,
+        'x' => Var::X,
+        'y' => Var::Y,
+        'z' => Var::Z,
+        _ => unreachable!(),
+    })(input)
+}
+
+// The ALU is a four-dimensional processing unit: it has integer variables w, x, y, and z. These variables all start with the value 0. The ALU also supports six instructions:
+
+//     inp a - Read an input value and write it to variable a.
+//     add a b - Add the value of a to the value of b, then store the result in variable a.
+//     mul a b - Multiply the value of a by the value of b, then store the result in variable a.
+//     div a b - Divide the value of a by the value of b, truncate the result to an integer, then store the result in variable a. (Here, "truncate" means to round the value toward zero.)
+//     mod a b - Divide the value of a by the value of b, then store the remainder in variable a. (This is also called the modulo operation.)
+//     eql a b - If the value of a and b are equal, then store the value 1 in variable a. Otherwise, store the value 0 in variable a.
+
+pub fn run(prog: &[Inst], input: &[i64]) -> [i64; 4] {
+    let mut state = [0; 4];
+    let mut input_index = 0;
+    for inst in prog {
+        match inst {
+            Inst::Inp(target) => {
+                state[target.index()] = input[input_index];
+                input_index += 1
+            }
+            Inst::Add(a, b) => binop(&mut state, *a, *b, |av, bv| av + bv),
+            Inst::Mul(a, b) => binop(&mut state, *a, *b, |av, bv| av * bv),
+            Inst::Div(a, b) => binop(&mut state, *a, *b, |av, bv| av / bv),
+            Inst::Mod(a, b) => binop(&mut state, *a, *b, |av, bv| av % bv),
+            Inst::Eql(a, b) => binop(&mut state, *a, *b, |av, bv| (av == bv) as i64),
+        }
+    }
+    state
+}
+
+fn binop<F: Fn(i64, i64) -> i64>(state: &mut [i64; 4], a: Var, b: Operand, run: F) {
+    let aval = state[a.index()];
+    let bval = match b {
+        Operand::Var(var) => state[var.index()],
+        Operand::Val(val) => val,
+    };
+    state[a.index()] = run(aval, bval);
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Inst {
+    Inp(Var),
+    Add(Var, Operand),
+    Mul(Var, Operand),
+    Div(Var, Operand),
+    Mod(Var, Operand),
+    Eql(Var, Operand),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Operand {
+    Var(Var),
+    Val(i64),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Var {
+    W,
+    X,
+    Y,
+    Z,
+}
+
+impl Var {
+    pub fn index(self) -> usize {
+        match self {
+            Var::W => 0,
+            Var::X => 1,
+            Var::Y => 2,
+            Var::Z => 3,
+        }
+    }
+}
+
+#[cfg(test)]
+mod alutest {
+    use super::*;
+
+    #[test]
+    fn example() {
+        let (rest, prog) = p_prog(
+            b"inp w
+add z w
+mod z 2
+div w 2
+add y w
+mod y 2
+div w 2
+add x w
+mod x 2
+div w 2
+mod w 2
+",
+        )
+        .unwrap();
+        assert_eq!(rest.len(), 0);
+
+        assert_eq!(run(&prog, &[0b1010]), [1, 0, 1, 0]);
+        assert_eq!(run(&prog, &[0b0101]), [0, 1, 0, 1]);
+    }
 }
 
 crate::test_day!(crate::day24::RUN, "day24", "not solved", "not solved");
