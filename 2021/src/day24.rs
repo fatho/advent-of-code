@@ -1,5 +1,7 @@
 #![allow(unused_imports)]
 
+use std::collections::{HashMap, HashSet};
+
 use crate::{parsers, Day};
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while};
@@ -41,7 +43,8 @@ pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     todo!()
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum Expr {
     Inp(usize),
     Const(i64),
@@ -52,23 +55,49 @@ enum Expr {
     Eql(usize, usize),
 }
 
+impl Expr {
+    pub fn replace_some(self, map: impl Fn(usize) -> Option<usize>) -> Self {
+        match self {
+            Expr::Inp(_) => self,
+            Expr::Const(_) => self,
+            Expr::Add(a, b) => Expr::Add(map(a).unwrap_or(a), map(b).unwrap_or(b)),
+            Expr::Mul(a, b) => Expr::Mul(map(a).unwrap_or(a), map(b).unwrap_or(b)),
+            Expr::Div(a, b) => Expr::Div(map(a).unwrap_or(a), map(b).unwrap_or(b)),
+            Expr::Mod(a, b) => Expr::Mod(map(a).unwrap_or(a), map(b).unwrap_or(b)),
+            Expr::Eql(a, b) => Expr::Eql(map(a).unwrap_or(a), map(b).unwrap_or(b)),
+        }
+    }
+}
+
 struct SsaProg {
     exprs: Vec<Expr>,
+    tombstones: Vec<bool>,
+    intern: HashMap<Expr, usize>,
     state: [usize; 4],
 }
 
 impl SsaProg {
     pub fn new() -> Self {
+        let mut intern = HashMap::new();
+        intern.insert(Expr::Const(0), 0);
         Self {
             exprs: vec![Expr::Const(0)],
+            tombstones: vec![false],
+            intern,
             state: [0; 4],
         }
     }
 
     pub fn push_expr(&mut self, expr: Expr) -> usize {
+        if let Some(id) = self.intern.get(&expr) {
+            *id
+        } else {
         let id = self.exprs.len();
         self.exprs.push(expr);
+            self.tombstones.push(false);
+            self.intern.insert(expr, id);
         id
+    }
     }
 
     pub fn push_binop(&mut self, a: Var, b: Operand, op: impl Fn(usize, usize) -> Expr) {
@@ -87,6 +116,9 @@ impl SsaProg {
         let mut viz = String::new();
         viz.push_str("digraph G {\n");
         for (i, e) in self.exprs.iter().enumerate() {
+            if self.tombstones[i] {
+                continue;
+            }
             writeln!(&mut viz, "  v{} [label=\"{}: {:?}\"];", i, i, e).unwrap();
             let sources = match e {
                 Expr::Inp(_) => None,
@@ -104,6 +136,140 @@ impl SsaProg {
         }
         viz.push_str("}\n");
         viz
+    }
+
+    pub fn as_const(&self, eid: usize) -> Option<i64> {
+        if let Expr::Const(v) = self.exprs[eid] {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    pub fn fold_constants(&mut self) {
+        let mut replacements: HashMap<usize, usize> = HashMap::new();
+        // constant fold
+        for i in 0..self.exprs.len() {
+            let enew = self.exprs[i].replace_some(|id| replacements.get(&id).copied());
+            let this = if let Some(inew) = self.intern.get(&enew).copied() {
+                if inew != i {
+                    self.tombstones[i] = true;
+                    replacements.insert(i, inew);
+                    continue;
+                }
+                inew
+            } else {
+                self.exprs[i] = enew;
+                i
+            };
+            match enew {
+                Expr::Inp(_) => {}
+                Expr::Const(_) => {}
+                Expr::Add(a, b) => match (self.as_const(a), self.as_const(b)) {
+                    (Some(x), Some(y)) => {
+                        let result = self.push_expr(Expr::Const(x + y));
+                        replacements.insert(this, result);
+                    }
+                    (Some(0), None) => {
+                        replacements.insert(this, b);
+                    }
+                    (None, Some(0)) => {
+                        replacements.insert(this, a);
+                    }
+                    _ => {}
+                },
+                Expr::Mul(a, b) => match (self.as_const(a), self.as_const(b)) {
+                    (None, Some(0)) | (Some(0), None) => {
+                        let zero = self.push_expr(Expr::Const(0));
+                        replacements.insert(this, zero);
+                    }
+                    (Some(x), Some(y)) => {
+                        let result = self.push_expr(Expr::Const(x * y));
+                        replacements.insert(this, result);
+                    }
+                    (Some(1), None) => {
+                        replacements.insert(this, b);
+                    }
+                    (None, Some(1)) => {
+                        replacements.insert(this, a);
+                    }
+                    _ => {}
+                },
+                Expr::Div(a, b) => match (self.as_const(a), self.as_const(b)) {
+                    (Some(x), Some(y)) => {
+                        let result = self.push_expr(Expr::Const(x / y));
+                        replacements.insert(this, result);
+                    }
+                    (None, Some(1)) => {
+                        replacements.insert(this, a);
+                    }
+                    _ => {}
+                },
+                Expr::Mod(a, b) => match (self.as_const(a), self.as_const(b)) {
+                    (Some(x), Some(y)) => {
+                        let result = self.push_expr(Expr::Const(x % y));
+                        replacements.insert(this, result);
+                    }
+                    (None, Some(1)) => {
+                        let zero = self.push_expr(Expr::Const(0));
+                        replacements.insert(this, zero);
+                    }
+                    _ => {}
+                },
+                Expr::Eql(a, b) => match (self.as_const(a), self.as_const(b)) {
+                    (Some(x), Some(y)) => {
+                        let result = self.push_expr(Expr::Const((x == y) as i64));
+                        replacements.insert(this, result);
+                    }
+                    _ => {
+                        if a == b {
+                            let result = self.push_expr(Expr::Const(0));
+                            replacements.insert(this, result);
+                        }
+                    }
+                },
+            }
+        }
+        for st in self.state.iter_mut() {
+            *st = replacements.get(st).copied().unwrap_or(*st);
+        }
+    }
+
+    pub fn elminate_dead_code(&mut self) {
+        let mut used = HashSet::new();
+        for e in self.state {
+            used.insert(e);
+        }
+        for i in (0..self.exprs.len()).rev() {
+            if used.contains(&i) {
+                let sources = match self.exprs[i] {
+                    Expr::Inp(_) => None,
+                    Expr::Const(_) => None,
+                    Expr::Add(a, b) => Some([a, b]),
+                    Expr::Mul(a, b) => Some([a, b]),
+                    Expr::Div(a, b) => Some([a, b]),
+                    Expr::Mod(a, b) => Some([a, b]),
+                    Expr::Eql(a, b) => Some([a, b]),
+                };
+                for i in sources.into_iter().flatten() {
+                    used.insert(i);
+                }
+            } else {
+                self.tombstones[i] = true;
+            }
+        }
+    }
+
+    pub fn eval(&self, e: usize, input: &[i64]) -> i64 {
+        match self.exprs[e] {
+            Expr::Inp(i) => input[i],
+            Expr::Const(v) => v,
+            Expr::Add(a, b) => self.eval(a, input) + self.eval(b, input),
+            Expr::Mul(a, b) => self.eval(a, input) * self.eval(b, input),
+            Expr::Div(a, b) => self.eval(a, input) / self.eval(b, input),
+            Expr::Mod(a, b) => self.eval(a, input) % self.eval(b, input),
+            Expr::Eql(a, b) => (self.eval(a, input) == self.eval(b, input)) as i64,
+        }
     }
 }
 
