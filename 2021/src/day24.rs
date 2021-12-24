@@ -17,25 +17,114 @@ pub fn part1(input: &[u8]) -> anyhow::Result<String> {
 
     // println!("{:?}", run(&validator, input));
 
-    let mut input = [9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9];
+    // let mut input = [9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9];
 
-    for i in (0..input.len()).rev() {
-        while input[i] > 0 {
-            let out = run(&validator, &input);
-            if out[Var::Z.index()] == 0 {
-                break;
-            } else {
-                input[i] -= 1;
-            }
-        }
-        if input[i] == 0 {
-            input[i] = 9;
+    // for i in (0..input.len()).rev() {
+    //     while input[i] > 0 {
+    //         let out = run(&validator, &input);
+    //         if out[Var::Z.index()] == 0 {
+    //             break;
+    //         } else {
+    //             input[i] -= 1;
+    //         }
+    //     }
+    //     if input[i] == 0 {
+    //         input[i] = 9;
+    //     }
+    // }
+
+    // println!("{:?}", input);
+
+    let ssa = to_ssa(&validator);
+    println!("{}", ssa.dot());
+
+    todo!()
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Expr {
+    Inp(usize),
+    Const(i64),
+    Add(usize, usize),
+    Mul(usize, usize),
+    Div(usize, usize),
+    Mod(usize, usize),
+    Eql(usize, usize),
+}
+
+struct SsaProg {
+    exprs: Vec<Expr>,
+    state: [usize; 4],
+}
+
+impl SsaProg {
+    pub fn new() -> Self {
+        Self {
+            exprs: vec![Expr::Const(0)],
+            state: [0; 4],
         }
     }
 
-    println!("{:?}", input);
+    pub fn push_expr(&mut self, expr: Expr) -> usize {
+        let id = self.exprs.len();
+        self.exprs.push(expr);
+        id
+    }
 
-    todo!()
+    pub fn push_binop(&mut self, a: Var, b: Operand, op: impl Fn(usize, usize) -> Expr) {
+        let ae = self.state[a.index()];
+        let be = match b {
+            Operand::Val(v) => self.push_expr(Expr::Const(v)),
+            Operand::Var(v) => self.state[v.index()],
+        };
+        let e = self.push_expr(op(ae, be));
+        self.state[a.index()] = e;
+    }
+
+    pub fn dot(&self) -> String {
+        use std::fmt::Write;
+
+        let mut viz = String::new();
+        viz.push_str("digraph G {\n");
+        for (i, e) in self.exprs.iter().enumerate() {
+            writeln!(&mut viz, "  v{} [label=\"{}: {:?}\"];", i, i, e).unwrap();
+            let sources = match e {
+                Expr::Inp(_) => None,
+                Expr::Const(_) => None,
+                Expr::Add(a, b) => Some((a, b)),
+                Expr::Mul(a, b) => Some((a, b)),
+                Expr::Div(a, b) => Some((a, b)),
+                Expr::Mod(a, b) => Some((a, b)),
+                Expr::Eql(a, b) => Some((a, b)),
+            };
+            if let Some((a, b)) = sources {
+                writeln!(&mut viz, "  v{} -> v{};", a, i).unwrap();
+                writeln!(&mut viz, "  v{} -> v{};", b, i).unwrap();
+            }
+        }
+        viz.push_str("}\n");
+        viz
+    }
+}
+
+fn to_ssa(prog: &[Inst]) -> SsaProg {
+    let mut out = SsaProg::new();
+    let mut input_index = 0;
+    for inst in prog {
+        match inst {
+            Inst::Inp(var) => {
+                let e = out.push_expr(Expr::Inp(input_index));
+                input_index += 1;
+                out.state[var.index()] = e;
+            }
+            Inst::Add(a, b) => out.push_binop(*a, *b, Expr::Add),
+            Inst::Mul(a, b) => out.push_binop(*a, *b, Expr::Mul),
+            Inst::Div(a, b) => out.push_binop(*a, *b, Expr::Div),
+            Inst::Mod(a, b) => out.push_binop(*a, *b, Expr::Mod),
+            Inst::Eql(a, b) => out.push_binop(*a, *b, Expr::Eql),
+        }
+    }
+    out
 }
 
 pub fn part2(input: &[u8]) -> anyhow::Result<String> {
