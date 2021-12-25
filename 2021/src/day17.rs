@@ -14,13 +14,39 @@ pub static RUN: Day = Day { part1, part2 };
 pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     let target = parsers::parse(terminated(p_target, opt(parsers::newline)), input)?;
 
-    // TODO: awful performance, pls don't do this at home
+    if *target.y.end() >= 0 {
+        anyhow::bail!("only works for targets with y < 0");
+    }
+
+    let vy_max = target.y.start().abs();
+
     let mut highest = 0;
-    for vx in 0..=*target.x.end() {
-        for vy in 0..10000 {
-            if let Some(top) = simulate((0, 0), (vx, vy), &target) {
-                if top > highest {
-                    highest = top;
+    for vx in 1..=*target.x.end() {
+        let xsteps = determine_x_steps(0, vx, &target);
+
+        let (min_step, max_step) = match xsteps {
+            XResult::Miss => continue,
+            XResult::AtLeast(m) => (m, None),
+            XResult::Between(m, n) => (m, Some(n)),
+        };
+
+        for init_vy in 0..=vy_max {
+            let mut step = min_step;
+            let mut y = predict_y(0, init_vy, min_step);
+            let mut vy = predict_vy(init_vy, min_step);
+            loop {
+                if target.y.contains(&y) {
+                    highest = highest.max(compute_max_y(0, init_vy));
+                    break;
+                }
+                if y < *target.y.start() {
+                    break;
+                }
+                step += 1;
+                y += vy;
+                vy -= 1;
+                if max_step.map_or(false, |max| step > max) {
+                    break;
                 }
             }
         }
@@ -49,6 +75,7 @@ fn simulate(start: (i32, i32), vel: (i32, i32), target: &Target) -> Option<i32> 
     let (mut x, mut y) = start;
     let (mut vx, mut vy) = vel;
     let mut highest = y;
+
     loop {
         x += vx;
         y += vy;
@@ -67,6 +94,105 @@ fn simulate(start: (i32, i32), vel: (i32, i32), target: &Target) -> Option<i32> 
         }
     }
 }
+
+fn predict_x(start_x: i32, vel_x: i32, steps: u32) -> i32 {
+    let offset = if steps as i32 >= vel_x {
+        vel_x * (vel_x + 1) / 2
+    } else {
+        let vel_x_end = vel_x - steps as i32;
+        vel_x * (vel_x + 1) / 2 - vel_x_end * (vel_x_end + 1) / 2
+    };
+    start_x + offset
+}
+
+fn predict_y(start_y: i32, vel_y: i32, steps: u32) -> i32 {
+    let isteps = steps as i32;
+    start_y + isteps * vel_y - isteps * (isteps - 1) / 2
+}
+
+fn predict_vy(vel_y: i32, steps: u32) -> i32 {
+    let isteps = steps as i32;
+    vel_y - isteps
+}
+
+fn compute_max_y(start_y: i32, vel_y: i32) -> i32 {
+    if vel_y <= 0 {
+        start_y
+    } else {
+        start_y + vel_y * (vel_y + 1) / 2
+    }
+}
+
+fn determine_x_steps(start_x: i32, vel_x: i32, target: &Target) -> XResult {
+    // check if we end in target region
+    let final_x = predict_x(start_x, vel_x, vel_x as u32);
+
+    let left_boundary = |s| predict_x(start_x, vel_x, s) >= *target.x.start();
+    let right_boundary = |s| predict_x(start_x, vel_x, s) > *target.x.end();
+
+    if final_x < *target.x.start() {
+        // undershot
+        XResult::Miss
+    } else if final_x > *target.x.end() {
+        // find when we entered
+        let first_beyond_start =
+            binary_search(0, vel_x as u32, left_boundary).expect("must have boundary");
+        let first_x_beyond_start = predict_x(start_x, vel_x, first_beyond_start);
+        if first_x_beyond_start > *target.x.end() {
+            // overshot
+            XResult::Miss
+        } else {
+            let first_beyond_end = binary_search(first_beyond_start, vel_x as u32, right_boundary)
+                .expect("must have boundary");
+            XResult::Between(first_beyond_start, first_beyond_end - 1)
+        }
+    } else {
+        // still inside x-range after velocity runs out
+
+        // find when we entered
+        let first_inside =
+            binary_search(0, vel_x as u32, left_boundary).expect("must have boundary");
+        XResult::AtLeast(first_inside)
+    }
+}
+
+fn binary_search(mut low: u32, mut high: u32, cond: impl Fn(u32) -> bool) -> Option<u32> {
+    use std::cmp::Ordering::*;
+    loop {
+        match low.cmp(&high) {
+            Less => {
+                let mid = (low + high) / 2;
+                if cond(mid) {
+                    high = mid;
+                } else {
+                    low = mid + 1;
+                }
+            }
+            Equal => {
+                return if cond(low) {
+                    Some(low)
+                } else {
+                    // all false
+                    None
+                };
+            }
+            Greater => return None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum XResult {
+    Miss,
+    AtLeast(u32),
+    Between(u32, u32),
+}
+
+// #[derive(Debug, Clone, Copy)]
+// enum YResult {
+//     Miss,
+//     Between(u32, u32),
+// }
 
 fn p_target(input: &[u8]) -> IResult<&[u8], Target> {
     map(
