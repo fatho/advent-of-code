@@ -58,41 +58,44 @@ pub fn part1(input: &[u8]) -> anyhow::Result<String> {
 pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     let target = parsers::parse(terminated(p_target, opt(parsers::newline)), input)?;
 
-    // TODO: awful performance, pls don't do this at home
+    if *target.y.end() >= 0 {
+        anyhow::bail!("only works for targets with y < 0");
+    }
+    let vy_max = target.y.start().abs();
+
     let mut count = 0;
     for vx in 0..=*target.x.end() {
-        for vy in -200..10000 {
-            if let Some(_top) = simulate((0, 0), (vx, vy), &target) {
-                count += 1;
+        let xsteps = determine_x_steps(0, vx, &target);
+
+        let (min_step, max_step) = match xsteps {
+            XResult::Miss => continue,
+            XResult::AtLeast(m) => (m, None),
+            XResult::Between(m, n) => (m, Some(n)),
+        };
+
+        for init_vy in -vy_max..=vy_max {
+            let mut step = min_step;
+            let mut y = predict_y(0, init_vy, min_step);
+            let mut vy = predict_vy(init_vy, min_step);
+            loop {
+                if target.y.contains(&y) {
+                    count += 1;
+                    break;
+                }
+                if y < *target.y.start() {
+                    break;
+                }
+                step += 1;
+                y += vy;
+                vy -= 1;
+                if max_step.map_or(false, |max| step > max) {
+                    break;
+                }
             }
         }
     }
 
     Ok(count.to_string())
-}
-
-fn simulate(start: (i32, i32), vel: (i32, i32), target: &Target) -> Option<i32> {
-    let (mut x, mut y) = start;
-    let (mut vx, mut vy) = vel;
-    let mut highest = y;
-
-    loop {
-        x += vx;
-        y += vy;
-        vx -= vx.signum();
-        vy -= 1;
-
-        if y > highest {
-            highest = y;
-        }
-
-        if target.x.contains(&x) && target.y.contains(&y) {
-            return Some(highest);
-        }
-        if y < *target.y.start() {
-            return None;
-        }
-    }
 }
 
 fn predict_x(start_x: i32, vel_x: i32, steps: u32) -> i32 {
