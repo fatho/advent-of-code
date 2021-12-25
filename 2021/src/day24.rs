@@ -1,6 +1,7 @@
 #![allow(unused_imports)]
 
 use std::collections::{HashMap, HashSet};
+use std::hash::Hash;
 
 use crate::{parsers, Day};
 use nom::branch::alt;
@@ -15,288 +16,114 @@ pub static RUN: Day = Day { part1, part2 };
 
 pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     let validator = parsers::parse(p_prog, input)?;
-    // let input = &[1, 3, 5, 7, 9, 2, 4, 6, 8, 9, 9, 9, 9, 9];
 
-    // println!("{:?}", run(&validator, input));
+    let input = find_input(&validator, (1..=9).rev());
+    let result = input.into_iter().fold(0, |acc, d| acc * 10 + d);
 
-    // let mut input = [9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9];
-
-    // for i in (0..input.len()).rev() {
-    //     while input[i] > 0 {
-    //         let out = run(&validator, &input);
-    //         if out[Var::Z.index()] == 0 {
-    //             break;
-    //         } else {
-    //             input[i] -= 1;
-    //         }
-    //     }
-    //     if input[i] == 0 {
-    //         input[i] = 9;
-    //     }
-    // }
-
-    // println!("{:?}", input);
-
-    let ssa = to_ssa(&validator);
-    println!("{}", ssa.dot());
-
-    todo!()
-}
-
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum Expr {
-    Inp(usize),
-    Const(i64),
-    Add(usize, usize),
-    Mul(usize, usize),
-    Div(usize, usize),
-    Mod(usize, usize),
-    Eql(usize, usize),
-}
-
-impl Expr {
-    pub fn replace_some(self, map: impl Fn(usize) -> Option<usize>) -> Self {
-        match self {
-            Expr::Inp(_) => self,
-            Expr::Const(_) => self,
-            Expr::Add(a, b) => Expr::Add(map(a).unwrap_or(a), map(b).unwrap_or(b)),
-            Expr::Mul(a, b) => Expr::Mul(map(a).unwrap_or(a), map(b).unwrap_or(b)),
-            Expr::Div(a, b) => Expr::Div(map(a).unwrap_or(a), map(b).unwrap_or(b)),
-            Expr::Mod(a, b) => Expr::Mod(map(a).unwrap_or(a), map(b).unwrap_or(b)),
-            Expr::Eql(a, b) => Expr::Eql(map(a).unwrap_or(a), map(b).unwrap_or(b)),
-        }
-    }
-}
-
-struct SsaProg {
-    exprs: Vec<Expr>,
-    tombstones: Vec<bool>,
-    intern: HashMap<Expr, usize>,
-    state: [usize; 4],
-}
-
-impl SsaProg {
-    pub fn new() -> Self {
-        let mut intern = HashMap::new();
-        intern.insert(Expr::Const(0), 0);
-        Self {
-            exprs: vec![Expr::Const(0)],
-            tombstones: vec![false],
-            intern,
-            state: [0; 4],
-        }
-    }
-
-    pub fn push_expr(&mut self, expr: Expr) -> usize {
-        if let Some(id) = self.intern.get(&expr) {
-            *id
-        } else {
-        let id = self.exprs.len();
-        self.exprs.push(expr);
-            self.tombstones.push(false);
-            self.intern.insert(expr, id);
-        id
-    }
-    }
-
-    pub fn push_binop(&mut self, a: Var, b: Operand, op: impl Fn(usize, usize) -> Expr) {
-        let ae = self.state[a.index()];
-        let be = match b {
-            Operand::Val(v) => self.push_expr(Expr::Const(v)),
-            Operand::Var(v) => self.state[v.index()],
-        };
-        let e = self.push_expr(op(ae, be));
-        self.state[a.index()] = e;
-    }
-
-    pub fn dot(&self) -> String {
-        use std::fmt::Write;
-
-        let mut viz = String::new();
-        viz.push_str("digraph G {\n");
-        for (i, e) in self.exprs.iter().enumerate() {
-            if self.tombstones[i] {
-                continue;
-            }
-            writeln!(&mut viz, "  v{} [label=\"{}: {:?}\"];", i, i, e).unwrap();
-            let sources = match e {
-                Expr::Inp(_) => None,
-                Expr::Const(_) => None,
-                Expr::Add(a, b) => Some((a, b)),
-                Expr::Mul(a, b) => Some((a, b)),
-                Expr::Div(a, b) => Some((a, b)),
-                Expr::Mod(a, b) => Some((a, b)),
-                Expr::Eql(a, b) => Some((a, b)),
-            };
-            if let Some((a, b)) = sources {
-                writeln!(&mut viz, "  v{} -> v{};", a, i).unwrap();
-                writeln!(&mut viz, "  v{} -> v{};", b, i).unwrap();
-            }
-        }
-        viz.push_str("}\n");
-        viz
-    }
-
-    pub fn as_const(&self, eid: usize) -> Option<i64> {
-        if let Expr::Const(v) = self.exprs[eid] {
-            Some(v)
-        } else {
-            None
-        }
-    }
-
-    pub fn fold_constants(&mut self) {
-        let mut replacements: HashMap<usize, usize> = HashMap::new();
-        // constant fold
-        for i in 0..self.exprs.len() {
-            let enew = self.exprs[i].replace_some(|id| replacements.get(&id).copied());
-            let this = if let Some(inew) = self.intern.get(&enew).copied() {
-                if inew != i {
-                    self.tombstones[i] = true;
-                    replacements.insert(i, inew);
-                    continue;
-                }
-                inew
-            } else {
-                self.exprs[i] = enew;
-                i
-            };
-            match enew {
-                Expr::Inp(_) => {}
-                Expr::Const(_) => {}
-                Expr::Add(a, b) => match (self.as_const(a), self.as_const(b)) {
-                    (Some(x), Some(y)) => {
-                        let result = self.push_expr(Expr::Const(x + y));
-                        replacements.insert(this, result);
-                    }
-                    (Some(0), None) => {
-                        replacements.insert(this, b);
-                    }
-                    (None, Some(0)) => {
-                        replacements.insert(this, a);
-                    }
-                    _ => {}
-                },
-                Expr::Mul(a, b) => match (self.as_const(a), self.as_const(b)) {
-                    (None, Some(0)) | (Some(0), None) => {
-                        let zero = self.push_expr(Expr::Const(0));
-                        replacements.insert(this, zero);
-                    }
-                    (Some(x), Some(y)) => {
-                        let result = self.push_expr(Expr::Const(x * y));
-                        replacements.insert(this, result);
-                    }
-                    (Some(1), None) => {
-                        replacements.insert(this, b);
-                    }
-                    (None, Some(1)) => {
-                        replacements.insert(this, a);
-                    }
-                    _ => {}
-                },
-                Expr::Div(a, b) => match (self.as_const(a), self.as_const(b)) {
-                    (Some(x), Some(y)) => {
-                        let result = self.push_expr(Expr::Const(x / y));
-                        replacements.insert(this, result);
-                    }
-                    (None, Some(1)) => {
-                        replacements.insert(this, a);
-                    }
-                    _ => {}
-                },
-                Expr::Mod(a, b) => match (self.as_const(a), self.as_const(b)) {
-                    (Some(x), Some(y)) => {
-                        let result = self.push_expr(Expr::Const(x % y));
-                        replacements.insert(this, result);
-                    }
-                    (None, Some(1)) => {
-                        let zero = self.push_expr(Expr::Const(0));
-                        replacements.insert(this, zero);
-                    }
-                    _ => {}
-                },
-                Expr::Eql(a, b) => match (self.as_const(a), self.as_const(b)) {
-                    (Some(x), Some(y)) => {
-                        let result = self.push_expr(Expr::Const((x == y) as i64));
-                        replacements.insert(this, result);
-                    }
-                    _ => {
-                        if a == b {
-                            let result = self.push_expr(Expr::Const(0));
-                            replacements.insert(this, result);
-                        }
-                    }
-                },
-            }
-        }
-        for st in self.state.iter_mut() {
-            *st = replacements.get(st).copied().unwrap_or(*st);
-        }
-    }
-
-    pub fn elminate_dead_code(&mut self) {
-        let mut used = HashSet::new();
-        for e in self.state {
-            used.insert(e);
-        }
-        for i in (0..self.exprs.len()).rev() {
-            if used.contains(&i) {
-                let sources = match self.exprs[i] {
-                    Expr::Inp(_) => None,
-                    Expr::Const(_) => None,
-                    Expr::Add(a, b) => Some([a, b]),
-                    Expr::Mul(a, b) => Some([a, b]),
-                    Expr::Div(a, b) => Some([a, b]),
-                    Expr::Mod(a, b) => Some([a, b]),
-                    Expr::Eql(a, b) => Some([a, b]),
-                };
-                for i in sources.into_iter().flatten() {
-                    used.insert(i);
-                }
-            } else {
-                self.tombstones[i] = true;
-            }
-        }
-    }
-
-    pub fn eval(&self, e: usize, input: &[i64]) -> i64 {
-        match self.exprs[e] {
-            Expr::Inp(i) => input[i],
-            Expr::Const(v) => v,
-            Expr::Add(a, b) => self.eval(a, input) + self.eval(b, input),
-            Expr::Mul(a, b) => self.eval(a, input) * self.eval(b, input),
-            Expr::Div(a, b) => self.eval(a, input) / self.eval(b, input),
-            Expr::Mod(a, b) => self.eval(a, input) % self.eval(b, input),
-            Expr::Eql(a, b) => (self.eval(a, input) == self.eval(b, input)) as i64,
-        }
-    }
-}
-
-fn to_ssa(prog: &[Inst]) -> SsaProg {
-    let mut out = SsaProg::new();
-    let mut input_index = 0;
-    for inst in prog {
-        match inst {
-            Inst::Inp(var) => {
-                let e = out.push_expr(Expr::Inp(input_index));
-                input_index += 1;
-                out.state[var.index()] = e;
-            }
-            Inst::Add(a, b) => out.push_binop(*a, *b, Expr::Add),
-            Inst::Mul(a, b) => out.push_binop(*a, *b, Expr::Mul),
-            Inst::Div(a, b) => out.push_binop(*a, *b, Expr::Div),
-            Inst::Mod(a, b) => out.push_binop(*a, *b, Expr::Mod),
-            Inst::Eql(a, b) => out.push_binop(*a, *b, Expr::Eql),
-        }
-    }
-    out
+    Ok(result.to_string())
 }
 
 pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     let validator = parsers::parse(p_prog, input)?;
+    let input = find_input(&validator, 1..=9);
+    let result = input.into_iter().fold(0, |acc, d| acc * 10 + d);
 
-    todo!()
+    Ok(result.to_string())
+}
+
+pub fn find_input<I: Iterator<Item = i64> + Clone>(validator: &[Inst], set: I) -> Vec<i64> {
+    let mut cache = HashSet::new();
+
+    let num_inputs = validator
+        .iter()
+        .filter(|inst| matches!(inst, Inst::Inp(_)))
+        .count();
+    let mut choices = Vec::new();
+    let mut input = Vec::new();
+    let mut states = Vec::new();
+    let mut cur_state = State {
+        ip: 0,
+        state: [0; 4],
+    };
+
+    choices.push(set.clone());
+
+    while let Some(mut choice) = choices.pop() {
+        if let Some(cur) = choice.next() {
+            choices.push(choice);
+            input.push(cur);
+            states.push(cur_state.clone());
+            cur_state.step_input(validator, cur);
+
+            if !cache.insert(cur_state.clone()) {
+                // if we've seen this state before, it means we entered it with
+                // higher preceding digits already, and didn't find a solution
+                // then. So we won't find a solution now either.
+                input.pop();
+                cur_state = states.pop().unwrap();
+                continue;
+            }
+
+            if input.len() == num_inputs {
+                if cur_state.state[Var::Z.index()] == 0 {
+                    break;
+                } else {
+                    // backtrack
+                    input.pop();
+                    cur_state = states.pop().unwrap()
+                }
+            } else {
+                // descend
+                choices.push(set.clone());
+            }
+        } else {
+            // exhausted, backtrack
+            input.pop();
+            cur_state = states.pop().unwrap();
+        }
+    }
+    input
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct State {
+    ip: usize,
+    state: [i64; 4],
+}
+
+impl State {
+    fn step_input(&mut self, prog: &[Inst], input: i64) {
+        let mut consumed_input = false;
+        while self.ip < prog.len() {
+            let cur = prog[self.ip];
+            match cur {
+                Inst::Inp(var) => {
+                    if consumed_input {
+                        return;
+                    }
+                    self.state[var.index()] = input;
+                    consumed_input = true;
+                }
+                Inst::Add(a, b) => self.state[a.index()] = self.var(a) + self.operand(b),
+                Inst::Mul(a, b) => self.state[a.index()] = self.var(a) * self.operand(b),
+                Inst::Div(a, b) => self.state[a.index()] = self.var(a) / self.operand(b),
+                Inst::Mod(a, b) => self.state[a.index()] = self.var(a) % self.operand(b),
+                Inst::Eql(a, b) => self.state[a.index()] = (self.var(a) == self.operand(b)) as i64,
+            }
+            self.ip += 1;
+        }
+    }
+
+    fn var(&self, var: Var) -> i64 {
+        self.state[var.index()]
+    }
+
+    fn operand(&self, op: Operand) -> i64 {
+        match op {
+            Operand::Var(v) => self.var(v),
+            Operand::Val(val) => val,
+        }
+    }
 }
 
 fn p_prog(input: &[u8]) -> IResult<&[u8], Vec<Inst>> {
@@ -377,7 +204,7 @@ fn binop<F: Fn(i64, i64) -> i64>(state: &mut [i64; 4], a: Var, b: Operand, run: 
     state[a.index()] = run(aval, bval);
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Inst {
     Inp(Var),
     Add(Var, Operand),
@@ -440,4 +267,4 @@ mod w 2
     }
 }
 
-crate::test_day!(crate::day24::RUN, "day24", "not solved", "not solved");
+crate::test_day!(crate::day24::RUN, "day24", "74929995999389", "not solved");
