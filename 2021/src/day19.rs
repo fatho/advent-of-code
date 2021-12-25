@@ -334,4 +334,4 @@ fn test_p_input() {
     );
 }
 
-//crate::test_day!(crate::day19::RUN, "day19", "not solved", "not solved");
+crate::test_day!(crate::day19::RUN, "day19", "315", "13192");

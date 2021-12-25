@@ -3,9 +3,11 @@
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 use std::fmt::Display;
+use std::io::BufRead;
 use std::ops::{Index, IndexMut};
 
 use crate::{parsers, Day};
+use anyhow::Context;
 use nom::bytes::complete::take_while;
 use nom::combinator::{flat_map, map};
 use nom::multi::fold_many0;
@@ -15,7 +17,6 @@ pub static RUN: Day = Day { part1, part2 };
 
 pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     let mut board = parse::<2>(input);
-    println!("{}", board);
     let least_cost = solve_iter(&mut board);
 
     Ok(least_cost.to_string())
@@ -68,12 +69,19 @@ fn solve_iter<const CAVE_HEIGHT: u32>(board: &mut Board<CAVE_HEIGHT>) -> u32 {
     best_so_far
 }
 
-fn sort_moves(moves: &mut [Move]) {
-    moves.sort_by_key(|m| Reverse(m.cost()))
-}
-
 pub fn part2(input: &[u8]) -> anyhow::Result<String> {
-    let mut board = parse::<4>(input);
+    let (pos, _) = input
+        .iter()
+        .copied()
+        .enumerate()
+        .filter(|(_pos, ch)| *ch == b'\n')
+        .nth(2)
+        .context("not enough lines")?;
+    let mut modified_input = input[0..pos + 1].to_owned();
+    let insertion = b"  #D#C#B#A#\n  #D#B#A#C#\n";
+    modified_input.extend_from_slice(insertion);
+    modified_input.extend_from_slice(&input[pos + 1..]);
+    let mut board = parse::<4>(&modified_input);
     println!("{}", board);
     let least_cost = solve_iter(&mut board);
 
@@ -342,7 +350,7 @@ impl<const CAVE_HEIGHT: u32> Display for Board<CAVE_HEIGHT> {
                     }
                 )?;
             }
-            write!(f, "\n")?;
+            writeln!(f)?;
         }
         Ok(())
     }
@@ -368,24 +376,6 @@ where
             height,
         }
     }
-
-    pub fn neighbours_with_index(
-        &self,
-        x: u32,
-        y: u32,
-    ) -> impl Iterator<Item = ((u32, u32), T)> + '_ {
-        // TODO: find something nicer than relying on wrapping?
-        let positions = [
-            (x, y.wrapping_sub(1)),
-            (x.wrapping_sub(1), y),
-            (x + 1, y),
-            (x, y + 1),
-        ];
-        positions
-            .into_iter()
-            .filter(|(nx, ny)| (0..self.width).contains(nx) && (0..self.height).contains(ny))
-            .map(|point| (point, self[point]))
-    }
 }
 
 impl<T> Index<(u32, u32)> for Map<T> {
@@ -404,4 +394,4 @@ impl<T> IndexMut<(u32, u32)> for Map<T> {
     }
 }
 
-crate::test_day!(crate::day23::RUN, "day23", "14460", "not solved");
+crate::test_day!(crate::day23::RUN, "day23", "14460", "41366");

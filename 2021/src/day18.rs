@@ -82,7 +82,7 @@ impl Num {
 
     fn explode(&mut self, depth: u32) -> Option<(Option<i64>, Option<i64>)> {
         match self {
-            Num::Reg(n) => None,
+            Num::Reg(_) => None,
             Num::Pair(l, r) => {
                 if depth == 4 {
                     // Exploding pairs always consist of regular numbers

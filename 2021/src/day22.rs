@@ -44,7 +44,7 @@ pub fn part1(input: &[u8]) -> anyhow::Result<String> {
                 std::mem::swap(&mut new, &mut tmp);
                 tmp.clear();
             }
-            on_ranges.extend(new.drain(..));
+            on_ranges.append(&mut new);
         } else {
             for on in on_ranges.drain(..) {
                 on.subtract(
@@ -87,7 +87,7 @@ pub fn part2(input: &[u8]) -> anyhow::Result<String> {
                 std::mem::swap(&mut new, &mut tmp);
                 tmp.clear();
             }
-            on_ranges.extend(new.drain(..));
+            on_ranges.append(&mut new);
         } else {
             for on in on_ranges.drain(..) {
                 on.subtract(
@@ -206,7 +206,7 @@ impl Cuboid {
             Cuboid {
                 x: self.x.clone(),
                 y: self.y.clone(),
-                z: chunk.zmax()+1..=self.zmax(),
+                z: chunk.zmax() + 1..=self.zmax(),
             },
             // X-left
             Cuboid {
@@ -216,36 +216,42 @@ impl Cuboid {
             },
             // X-right
             Cuboid {
-                x: chunk.xmax()+1..=self.xmax(),
+                x: chunk.xmax() + 1..=self.xmax(),
                 y: self.y.clone(),
                 z: chunk.z.clone(),
             },
             // Y-left
             Cuboid {
                 x: chunk.x.clone(),
-                y: self.ymin()..=chunk.ymin()-1,
+                y: self.ymin()..=chunk.ymin() - 1,
                 z: chunk.z.clone(),
             },
             // Y-right
             Cuboid {
                 x: chunk.x.clone(),
-                y: chunk.ymax()+1..=self.ymax(),
+                y: chunk.ymax() + 1..=self.ymax(),
                 z: chunk.z.clone(),
             },
         ];
 
         let mut part_volume = chunk.volume();
         for part in parts.iter() {
-            if ! part.is_empty() {
+            if !part.is_empty() {
                 part_volume += part.volume();
                 output.push(part.clone());
             }
         }
         // Sanity check that the parts indeed add up to the whole again
-        assert_eq!(part_volume, self.volume(), "{:?} + {:?} == {:?}", parts, chunk, self);
+        assert_eq!(
+            part_volume,
+            self.volume(),
+            "{:?} + {:?} == {:?}",
+            parts,
+            chunk,
+            self
+        );
     }
 }
-
 
 struct Cmd {
     on: bool,

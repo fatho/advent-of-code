@@ -267,4 +267,9 @@ mod w 2
     }
 }
 
-crate::test_day!(crate::day24::RUN, "day24", "74929995999389", "not solved");
+crate::test_day!(
+    crate::day24::RUN,
+    "day24",
+    "74929995999389",
+    "11118151637112"
+);

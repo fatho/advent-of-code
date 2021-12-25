@@ -40,7 +40,7 @@ pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     let mut count = 0;
     for vx in 0..=*target.x.end() {
         for vy in -200..10000 {
-            if let Some(top) = simulate((0, 0), (vx, vy), &target) {
+            if let Some(_top) = simulate((0, 0), (vx, vy), &target) {
                 count += 1;
             }
         }
@@ -101,4 +101,4 @@ struct Target {
     y: RangeInclusive<i32>,
 }
 
-// TODO: way to slow crate::test_day!(crate::day17::RUN, "day17", "7750", "4120");
+crate::test_day!(crate::day17::RUN, "day17", "7750", "4120");
