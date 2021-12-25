@@ -70,7 +70,6 @@ where
     while let Some(cur) = path.last() {
         let cur = *cur;
         if cur == end {
-            //eprintln!("{:?}", path);
             callback(&path);
 
             visited.unvisit(cur);

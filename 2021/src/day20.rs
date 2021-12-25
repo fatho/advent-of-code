@@ -16,13 +16,10 @@ pub static RUN: Day = Day { part1, part2 };
 pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     let (algo, map) = parsers::parse(p_input, input)?;
     let mut result = map.pad(10, 10, 10, 10, false);
-    println!("{}", render(&result));
     for _ in 0..2 {
         result = convolve(&result, &algo);
-        println!("{}", render(&result));
     }
     result = result.shrink(5, 5, 5, 5, false);
-    println!("{}", render(&result));
     let num_light = result.data.iter().filter(|b| **b).count();
     Ok(num_light.to_string())
 }

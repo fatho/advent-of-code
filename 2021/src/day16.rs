@@ -12,7 +12,6 @@ pub static RUN: Day = Day { part1, part2 };
 pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     let bin_input = hex_to_bin(input);
     let pack = parsers::parse(terminated(p_packet, many0(tag("0"))), &bin_input)?;
-    println!("{:#?}", pack);
     Ok(version_sum(&pack).to_string())
 }
 
@@ -27,7 +26,6 @@ fn version_sum(packet: &Packet) -> u32 {
 pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     let bin_input = hex_to_bin(input);
     let pack = parsers::parse(terminated(p_packet, many0(tag("0"))), &bin_input)?;
-    //println!("{:#?}", pack);
     Ok(eval(&pack).to_string())
 }
 

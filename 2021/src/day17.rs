@@ -13,7 +13,6 @@ pub static RUN: Day = Day { part1, part2 };
 
 pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     let target = parsers::parse(terminated(p_target, opt(parsers::newline)), input)?;
-    println!("{:?}", target);
 
     // TODO: awful performance, pls don't do this at home
     let mut highest = 0;
@@ -32,9 +31,6 @@ pub fn part1(input: &[u8]) -> anyhow::Result<String> {
 
 pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     let target = parsers::parse(terminated(p_target, opt(parsers::newline)), input)?;
-    println!("{:?}", target);
-    println!("{}", target.x.end());
-    println!("{:?}", simulate((0, 0), (29, -5), &target));
 
     // TODO: awful performance, pls don't do this at home
     let mut count = 0;

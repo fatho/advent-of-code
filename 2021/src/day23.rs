@@ -82,7 +82,6 @@ pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     modified_input.extend_from_slice(insertion);
     modified_input.extend_from_slice(&input[pos + 1..]);
     let mut board = parse::<4>(&modified_input);
-    println!("{}", board);
     let least_cost = solve_iter(&mut board);
 
     Ok(least_cost.to_string())

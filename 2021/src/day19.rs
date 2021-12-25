@@ -17,7 +17,6 @@ pub static RUN: Day = Day { part1, part2 };
 
 pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     let mut scanners = parsers::parse(p_input, input)?;
-    //println!("{:?}", scanners);
 
     let ref_scanner = scanners.pop().context("must have at leat one scanner")?;
     let mut absolute_points = ref_scanner.points.iter().copied().collect::<HashSet<_>>();
@@ -31,7 +30,6 @@ pub fn part1(input: &[u8]) -> anyhow::Result<String> {
                 scanners.swap_remove(i);
             }
         }
-        println!("{} remaining", scanners.len());
     }
     Ok(absolute_points.len().to_string())
 }
@@ -71,7 +69,6 @@ fn match_scanner(
 
 pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     let mut scanners = parsers::parse(p_input, input)?;
-    //println!("{:?}", scanners);
 
     let mut scanner_positions = Vec::new();
     let ref_scanner = scanners.pop().context("must have at leat one scanner")?;
@@ -88,7 +85,6 @@ pub fn part2(input: &[u8]) -> anyhow::Result<String> {
                 scanner_positions.push(off);
             }
         }
-        println!("{} remaining", scanners.len());
     }
 
     let mut largest = 0;

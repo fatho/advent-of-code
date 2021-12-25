@@ -82,11 +82,23 @@ pub fn aoc_main(days: &[Day]) -> anyhow::Result<()> {
             let inpath = opt.input.join(format!("day{}/input.txt", index + 1));
             let contents =
                 read_bytes(&inpath).with_context(|| format!("reading {}", inpath.display()))?;
+
+            let before = Instant::now();
             let out1 = (day.part1)(&contents)
                 .with_context(|| format!("day{}.1: {}", index + 1, inpath.display().to_string()))?;
+            let after_part1 = Instant::now();
             let out2 = (day.part2)(&contents)
                 .with_context(|| format!("day{}.2: {}", index + 1, inpath.display().to_string()))?;
-            println!("{}: {} {}", index + 1, out1, out2);
+            let after_part2 = Instant::now();
+
+            println!(
+                "{}\t{:?}\t{:?}\t{:.3}\t{:.3}",
+                index + 1,
+                out1,
+                out2,
+                after_part1.duration_since(before).as_secs_f64() * 1000.0,
+                after_part2.duration_since(after_part1).as_secs_f64() * 1000.0,
+            );
         }
         let duration = before.elapsed();
         eprintln!("Took {:.3} ms", duration.as_secs_f64() * 1000.0);

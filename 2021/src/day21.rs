@@ -55,7 +55,6 @@ pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     let mut p2_wins = 0;
 
     while states_left {
-        println!("{}", state_space.states.iter().copied().sum::<u64>());
         states_left = false;
         // Advance one step
         for p1_pos in 0..10 {
@@ -143,7 +142,6 @@ pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     //         }
     //     }
     // }
-    println!("{} {}", p1_wins, p2_wins);
 
     Ok(p1_wins.max(p2_wins).to_string())
 }
