@@ -86,8 +86,8 @@ pub fn find_input<I: Iterator<Item = i64> + Clone>(validator: &[Inst], set: I) -
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct State {
-    ip: usize,
     state: [i64; 4],
+    ip: usize,
 }
 
 impl State {
