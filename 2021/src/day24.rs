@@ -48,10 +48,8 @@ pub fn find_input<I: Iterator<Item = i64> + Clone>(validator: &[Inst], set: I) -
 
     choices.push(set.clone());
 
-    while let Some(mut choice) = choices.pop() {
+    while let Some(choice) = choices.last_mut() {
         if let Some(cur) = choice.next() {
-            choices.push(choice);
-            input.push(cur);
             states.push(cur_state.clone());
             cur_state.step_input(validator, cur);
 
@@ -59,25 +57,26 @@ pub fn find_input<I: Iterator<Item = i64> + Clone>(validator: &[Inst], set: I) -
                 // if we've seen this state before, it means we entered it with
                 // higher preceding digits already, and didn't find a solution
                 // then. So we won't find a solution now either.
-                input.pop();
                 cur_state = states.pop().unwrap();
                 continue;
             }
 
-            if input.len() == num_inputs {
+            if input.len() == num_inputs - 1 {
                 if cur_state.state[Var::Z.index()] == 0 {
+                    input.push(cur);
                     break;
                 } else {
                     // backtrack
-                    input.pop();
                     cur_state = states.pop().unwrap()
                 }
             } else {
                 // descend
+                input.push(cur);
                 choices.push(set.clone());
             }
         } else {
             // exhausted, backtrack
+            choices.pop();
             input.pop();
             cur_state = states.pop().unwrap();
         }
