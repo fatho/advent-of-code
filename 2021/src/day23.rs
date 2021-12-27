@@ -96,6 +96,7 @@ fn parse<const CAVE_HEIGHT: u32>(input: &[u8]) -> Board<CAVE_HEIGHT> {
         } else {
             if let Some(color) = Color::from_ascii(*ch) {
                 board.fields[(x, y)] = Some(Field::Amphipod(color));
+                board.podmap[(x, y)] = board.amphipods.len() as u8;
                 board.amphipods.push((x, y));
             }
 
@@ -184,6 +185,7 @@ fn cost(color: Color, dist: u32) -> u32 {
 struct Board<const CAVE_HEIGHT: u32> {
     fields: Map<Option<Field>>,
     amphipods: Vec<(u32, u32)>,
+    podmap: Map<u8>,
 }
 
 impl<const CAVE_HEIGHT: u32> Board<CAVE_HEIGHT> {
@@ -202,6 +204,7 @@ impl<const CAVE_HEIGHT: u32> Board<CAVE_HEIGHT> {
         Self {
             fields: map,
             amphipods: vec![],
+            podmap: Map::new(13, 3 + CAVE_HEIGHT, 0xFF),
         }
     }
 
@@ -249,7 +252,7 @@ impl<const CAVE_HEIGHT: u32> Board<CAVE_HEIGHT> {
                 // In a cave
 
                 // Sanity check: exit of a cave must always be free
-                assert!(matches!(self.fields[(x, 1)], Some(Field::Hallway)));
+                debug_assert!(matches!(self.fields[(x, 1)], Some(Field::Hallway)));
 
                 let can_leave =
                     (2..y).all(|cy| matches!(self.fields[(x, cy)], Some(Field::Hallway)));
@@ -333,19 +336,21 @@ impl<const CAVE_HEIGHT: u32> Board<CAVE_HEIGHT> {
     }
 
     pub fn do_move(&mut self, mov: &Move) {
-        assert_eq!(self.fields[mov.from], Some(Field::Amphipod(mov.amphipod)));
+        debug_assert_eq!(self.fields[mov.from], Some(Field::Amphipod(mov.amphipod)));
         self.fields[mov.from] = Some(Field::Hallway);
         self.fields[mov.to] = Some(Field::Amphipod(mov.amphipod));
-        self.amphipods.retain(|pos| *pos != mov.from);
-        self.amphipods.push(mov.to);
+        let podidx = self.podmap[mov.from];
+        self.podmap[mov.to] = podidx;
+        self.amphipods[podidx as usize] = mov.to;
     }
 
     pub fn undo_move(&mut self, mov: &Move) {
-        assert_eq!(self.fields[mov.to], Some(Field::Amphipod(mov.amphipod)));
+        debug_assert_eq!(self.fields[mov.to], Some(Field::Amphipod(mov.amphipod)));
         self.fields[mov.from] = Some(Field::Amphipod(mov.amphipod));
         self.fields[mov.to] = Some(Field::Hallway);
-        self.amphipods.retain(|pos| *pos != mov.to);
-        self.amphipods.push(mov.from);
+        let podidx = self.podmap[mov.to];
+        self.podmap[mov.from] = podidx;
+        self.amphipods[podidx as usize] = mov.from;
     }
 
     pub fn is_done(&self) -> bool {
