@@ -11,6 +11,7 @@ use nom::combinator::{flat_map, map};
 use nom::multi::{fold_many0, many0, separated_list0};
 use nom::sequence::{delimited, pair, terminated, tuple};
 use nom::IResult;
+use rustc_hash::FxHashSet;
 pub static RUN: Day = Day { part1, part2 };
 
 // TODO: definitely needs a performance upgrade
@@ -19,7 +20,7 @@ pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     let mut scanners = parsers::parse(p_input, input)?;
 
     let ref_scanner = scanners.pop().context("must have at leat one scanner")?;
-    let mut absolute_points = ref_scanner.points.iter().copied().collect::<HashSet<_>>();
+    let mut absolute_points = ref_scanner.points.iter().copied().collect::<FxHashSet<_>>();
 
     while !scanners.is_empty() {
         for i in (0..scanners.len()).rev() {
@@ -35,7 +36,7 @@ pub fn part1(input: &[u8]) -> anyhow::Result<String> {
 }
 
 fn match_scanner(
-    abs: &HashSet<Vec3>,
+    abs: &FxHashSet<Vec3>,
     scanner: &Scanner,
     threshold: u32,
 ) -> Option<(Orientation, Vec3)> {
@@ -53,7 +54,6 @@ fn match_scanner(
                 let mut matches = 0;
                 for spoint in scanner.points.iter() {
                     let spoint_as_abs = o.local_to_global(*spoint) + offset;
-                    // TODO: faster lookup
                     if abs.contains(&spoint_as_abs) {
                         matches += 1;
                     }
@@ -73,7 +73,7 @@ pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     let mut scanner_positions = Vec::new();
     let ref_scanner = scanners.pop().context("must have at leat one scanner")?;
     scanner_positions.push(Vec3::new(0, 0, 0));
-    let mut absolute_points = ref_scanner.points.iter().copied().collect::<HashSet<_>>();
+    let mut absolute_points = ref_scanner.points.iter().copied().collect::<FxHashSet<_>>();
 
     while !scanners.is_empty() {
         for i in (0..scanners.len()).rev() {
@@ -151,6 +151,7 @@ impl Vec3 {
 impl Add for Vec3 {
     type Output = Vec3;
 
+    #[inline]
     fn add(self, rhs: Self) -> Self::Output {
         Vec3 {
             x: self.x + rhs.x,
@@ -163,6 +164,7 @@ impl Add for Vec3 {
 impl Sub for Vec3 {
     type Output = Vec3;
 
+    #[inline]
     fn sub(self, rhs: Self) -> Self::Output {
         Vec3 {
             x: self.x - rhs.x,
@@ -175,6 +177,7 @@ impl Sub for Vec3 {
 impl Mul<i32> for Vec3 {
     type Output = Vec3;
 
+    #[inline]
     fn mul(self, rhs: i32) -> Self::Output {
         Vec3 {
             x: self.x * rhs,
