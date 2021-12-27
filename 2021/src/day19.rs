@@ -19,73 +19,14 @@ pub static RUN: Day = Day { part1, part2 };
 pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     let mut scanners = parsers::parse(p_input, input)?;
 
-    let ref_scanner = scanners.pop().context("must have at leat one scanner")?;
-    let mut absolute_points = ref_scanner.points.iter().copied().collect::<FxHashSet<_>>();
-
-    while !scanners.is_empty() {
-        for i in (0..scanners.len()).rev() {
-            if let Some((o, off)) = match_scanner(&absolute_points, &scanners[i], 12) {
-                for p in scanners[i].points.iter() {
-                    absolute_points.insert(o.local_to_global(*p) + off);
-                }
-                scanners.swap_remove(i);
-            }
-        }
-    }
+    let (absolute_points, _) = match_point_clouds(scanners)?;
     Ok(absolute_points.len().to_string())
 }
 
-fn match_scanner(
-    abs: &FxHashSet<Vec3>,
-    scanner: &Scanner,
-    threshold: u32,
-) -> Option<(Orientation, Vec3)> {
-    // check each orientation
-    for o in ORIENTATIONS {
-        // take each of the original points as reference point
-        for aref in abs {
-            // assuming it corresponds to each point from the scanner
-            for sref in scanner.points.iter() {
-                // Now check if the remaining points are consistent
-                let srot = o.local_to_global(*sref);
-                // Assumed offset
-                let offset = *aref - srot;
-
-                let mut matches = 0;
-                for spoint in scanner.points.iter() {
-                    let spoint_as_abs = o.local_to_global(*spoint) + offset;
-                    if abs.contains(&spoint_as_abs) {
-                        matches += 1;
-                    }
-                }
-                if matches >= threshold {
-                    return Some((o, offset));
-                }
-            }
-        }
-    }
-    None
-}
-
 pub fn part2(input: &[u8]) -> anyhow::Result<String> {
-    let mut scanners = parsers::parse(p_input, input)?;
+    let scanners = parsers::parse(p_input, input)?;
 
-    let mut scanner_positions = Vec::new();
-    let ref_scanner = scanners.pop().context("must have at leat one scanner")?;
-    scanner_positions.push(Vec3::new(0, 0, 0));
-    let mut absolute_points = ref_scanner.points.iter().copied().collect::<FxHashSet<_>>();
-
-    while !scanners.is_empty() {
-        for i in (0..scanners.len()).rev() {
-            if let Some((o, off)) = match_scanner(&absolute_points, &scanners[i], 12) {
-                for p in scanners[i].points.iter() {
-                    absolute_points.insert(o.local_to_global(*p) + off);
-                }
-                scanners.swap_remove(i);
-                scanner_positions.push(off);
-            }
-        }
-    }
+    let (_, scanner_positions) = match_point_clouds(scanners)?;
 
     let mut largest = 0;
     for i in 0..scanner_positions.len() - 1 {
@@ -98,6 +39,74 @@ pub fn part2(input: &[u8]) -> anyhow::Result<String> {
         }
     }
     Ok(largest.to_string())
+}
+
+fn match_point_clouds(
+    mut scanners: Vec<Scanner>,
+) -> Result<(FxHashSet<Vec3>, Vec<Vec3>), anyhow::Error> {
+    let ref_scanner = scanners.pop().context("must have at leat one scanner")?;
+    let mut scanner_positions = vec![Vec3::new(0, 0, 0)];
+
+    let mut absolute_points = ref_scanner.points.iter().copied().collect::<FxHashSet<_>>();
+    let mut reference_points = ref_scanner.points;
+    let mut worklist = scanners
+        .into_iter()
+        .map(|scanner| (scanner, 0))
+        .collect::<Vec<_>>();
+    while !worklist.is_empty() {
+        for i in (0..worklist.len()).rev() {
+            let (ref scanner, ref mut ref_point_base) = worklist[i];
+            if let Some((o, off)) = match_scanner(
+                &absolute_points,
+                &reference_points[*ref_point_base..],
+                scanner,
+                12,
+            ) {
+                for p in scanner.points.iter() {
+                    let point = o.local_to_global(*p) + off;
+                    if absolute_points.insert(point) {
+                        reference_points.push(point);
+                    }
+                }
+                worklist.swap_remove(i);
+                scanner_positions.push(off);
+            } else {
+                *ref_point_base = reference_points.len();
+            }
+        }
+    }
+    Ok((absolute_points, scanner_positions))
+}
+
+fn match_scanner(
+    final_points: &FxHashSet<Vec3>,
+    reference_points: &[Vec3],
+    scanner: &Scanner,
+    threshold: u32,
+) -> Option<(Orientation, Vec3)> {
+    // check each orientation
+    for o in ORIENTATIONS {
+        // take each of the original points as reference point
+        for aref in reference_points {
+            // assuming it corresponds to each point from the scanner
+            for sref in scanner.points.iter() {
+                // Now check if the remaining points are consistent
+                let srot = o.local_to_global(*sref);
+                // Assumed offset
+                let offset = *aref - srot;
+
+                let mut matches = 0;
+                for spoint in scanner.points.iter() {
+                    let spoint_as_abs = o.local_to_global(*spoint) + offset;
+                    matches += final_points.contains(&spoint_as_abs) as u32;
+                }
+                if matches >= threshold {
+                    return Some((o, offset));
+                }
+            }
+        }
+    }
+    None
 }
 
 fn p_input(input: &[u8]) -> IResult<&[u8], Vec<Scanner>> {
