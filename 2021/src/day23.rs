@@ -42,22 +42,23 @@ fn solve_iter<const CAVE_HEIGHT: u32>(board: &mut Board<CAVE_HEIGHT>) -> u32 {
         } else {
             let next = allmoves.pop().expect("must have move");
             let cost = next.cost;
-            if current_total + cost > best_so_far {
-                continue;
-            }
             // perform move
             current_total += cost;
             board.do_move(&next);
-            moves.push(next);
 
-            if board.is_done() {
+            let estimated_total = current_total + board.estimate_remaining_cost();
+            if estimated_total > best_so_far {
+                // undo move
+                current_total -= cost;
+                board.undo_move(&next);
+            } else if board.is_done() {
                 // found solution
                 best_so_far = best_so_far.min(current_total);
                 // undo move
                 current_total -= cost;
                 board.undo_move(&next);
-                moves.pop();
             } else {
+                moves.push(next);
                 // populate subsequent choices
                 let top = allmoves.len();
                 choices.push(top);
@@ -139,6 +140,15 @@ enum Field {
     Hallway,
 }
 
+impl Field {
+    pub fn as_amphipod(self) -> Option<Color> {
+        match self {
+            Field::Amphipod(c) => Some(c),
+            Field::Hallway => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 struct Move {
     /// Index of the moving amphipod
@@ -197,108 +207,107 @@ impl<const CAVE_HEIGHT: u32> Board<CAVE_HEIGHT> {
 
     pub fn compute_moves(&self, moves: &mut Vec<Move>) {
         for (x, y) in self.amphipods.iter().copied() {
-            if let Some(Field::Amphipod(color)) = self.fields[(x, y)] {
-                // Find where it belongs
-                let zone_x = match color {
-                    Color::Amber => 3,
-                    Color::Bronze => 5,
-                    Color::Copper => 7,
-                    Color::Desert => 9,
-                };
-                // Can we move to the target cave?
-                let target_pos_free = if self.path_to_cave_free(x, zone_x) {
-                    // Check if we can enter the target cave
-                    let target_y = (2..2 + CAVE_HEIGHT)
-                        .rev()
-                        .find(|cy| matches!(self.fields[(zone_x, *cy)], Some(Field::Hallway)));
-                    target_y.and_then(|target_y| {
-                        // Check if all others have the same color
-                        let same_color = (target_y + 1..2 + CAVE_HEIGHT)
-                            .all(|cy| self.fields[(zone_x, cy)] == Some(Field::Amphipod(color)));
-                        if same_color {
-                            // we can move in
-                            Some((zone_x, target_y))
-                        } else {
-                            None
-                        }
-                    })
-                } else {
-                    None
-                };
-                if y == 1 {
-                    if let Some(target) = target_pos_free {
-                        // when in the hallway, always make the move
-                        moves.push(Move {
-                            from: (x, y),
-                            to: target,
-                            amphipod: color,
-                            cost: cost(color, manhattan((x, y), target)),
-                        });
+            let color = self.fields[(x, y)].unwrap().as_amphipod().unwrap();
+            // Find where it belongs
+            let zone_x = match color {
+                Color::Amber => 3,
+                Color::Bronze => 5,
+                Color::Copper => 7,
+                Color::Desert => 9,
+            };
+            // Can we move to the target cave?
+            let target_pos_free = if self.path_to_cave_free(x, zone_x) {
+                // Check if we can enter the target cave
+                let target_y = (2..2 + CAVE_HEIGHT)
+                    .rev()
+                    .find(|cy| matches!(self.fields[(zone_x, *cy)], Some(Field::Hallway)));
+                target_y.and_then(|target_y| {
+                    // Check if all others have the same color
+                    let same_color = (target_y + 1..2 + CAVE_HEIGHT)
+                        .all(|cy| self.fields[(zone_x, cy)] == Some(Field::Amphipod(color)));
+                    if same_color {
+                        // we can move in
+                        Some((zone_x, target_y))
+                    } else {
+                        None
                     }
-                } else {
-                    // In a cave
+                })
+            } else {
+                None
+            };
+            if y == 1 {
+                if let Some(target) = target_pos_free {
+                    // when in the hallway, always make the move
+                    moves.push(Move {
+                        from: (x, y),
+                        to: target,
+                        amphipod: color,
+                        cost: cost(color, manhattan((x, y), target)),
+                    });
+                }
+            } else {
+                // In a cave
 
-                    // Sanity check: exit of a cave must always be free
-                    assert!(matches!(self.fields[(x, 1)], Some(Field::Hallway)));
+                // Sanity check: exit of a cave must always be free
+                assert!(matches!(self.fields[(x, 1)], Some(Field::Hallway)));
 
-                    let can_leave =
-                        (2..y).all(|cy| matches!(self.fields[(x, cy)], Some(Field::Hallway)));
-                    if !can_leave {
+                let can_leave =
+                    (2..y).all(|cy| matches!(self.fields[(x, cy)], Some(Field::Hallway)));
+                if !can_leave {
+                    continue;
+                }
+                // if already in the right room, don't leave unless necessary
+                if x == zone_x {
+                    let must_make_room = (y + 1..2 + CAVE_HEIGHT).any(|cy| {
+                        if let Some(Field::Amphipod(other)) = self.fields[(x, cy)] {
+                            other != color
+                        } else {
+                            unreachable!("caves must be filled from the bottom up")
+                        }
+                    });
+                    if !must_make_room {
                         continue;
                     }
-                    // if already in the right room, don't leave unless necessary
-                    if x == zone_x {
-                        let must_make_room = (y + 1..2 + CAVE_HEIGHT).any(|cy| {
-                            if let Some(Field::Amphipod(other)) = self.fields[(x, cy)] {
-                                other != color
-                            } else {
-                                unreachable!("caves must be filled from the bottom up")
-                            }
-                        });
-                        if !must_make_room {
-                            continue;
-                        }
-                    }
+                }
 
-                    // if direct path to target is available, always use that
-                    if let Some(target) = target_pos_free {
-                        moves.push(Move {
-                            from: (x, y),
-                            to: target,
-                            amphipod: color,
-                            cost: cost(color, absdiff(target.0, x) + (y - 1) + (target.1 - 1)),
-                        });
-                        continue;
-                    }
+                // if direct path to target is available, always use that
+                if let Some(target) = target_pos_free {
+                    moves.push(Move {
+                        from: (x, y),
+                        to: target,
+                        amphipod: color,
+                        cost: cost(color, absdiff(target.0, x) + (y - 1) + (target.1 - 1)),
+                    });
+                    continue;
+                }
 
-                    // Check where we can go:
-                    for tx in x + 1..=11 {
-                        if matches!(self.fields[(tx, 1)], Some(Field::Hallway)) {
-                            if !matches!(tx, 3 | 5 | 7 | 9) {
-                                moves.push(Move {
-                                    amphipod: color,
-                                    from: (x, y),
-                                    to: (tx, 1),
-                                    cost: cost(color, manhattan((x, y), (tx, 1))),
-                                })
-                            }
-                        } else {
-                            break;
+                // Check where we can go:
+                for tx in x + 1..=11 {
+                    if matches!(self.fields[(tx, 1)], Some(Field::Hallway)) {
+                        if !matches!(tx, 3 | 5 | 7 | 9) {
+                            moves.push(Move {
+                                amphipod: color,
+                                from: (x, y),
+                                to: (tx, 1),
+                                cost: cost(color, manhattan((x, y), (tx, 1))),
+                            })
                         }
+                    } else {
+                        break;
                     }
-                    for tx in (1..=x - 1).rev() {
-                        if matches!(self.fields[(tx, 1)], Some(Field::Hallway)) {
-                            if !matches!(tx, 3 | 5 | 7 | 9) {
-                                moves.push(Move {
-                                    amphipod: color,
-                                    from: (x, y),
-                                    to: (tx, 1),
-                                    cost: cost(color, manhattan((x, y), (tx, 1))),
-                                })
-                            }
-                        } else {
-                            break;
+                }
+                for tx in (1..=x - 1).rev() {
+                    if matches!(self.fields[(tx, 1)], Some(Field::Hallway)) {
+                        if !matches!(tx, 3 | 5 | 7 | 9) {
+                            moves.push(Move {
+                                amphipod: color,
+                                from: (x, y),
+                                to: (tx, 1),
+                                cost: cost(color, manhattan((x, y), (tx, 1))),
+                            })
                         }
+                    } else {
+                        break;
                     }
                 }
             }
@@ -348,6 +357,27 @@ impl<const CAVE_HEIGHT: u32> Board<CAVE_HEIGHT> {
             }
         }
         true
+    }
+
+    pub fn estimate_remaining_cost(&self) -> u32 {
+        // If we disregard collisions, how many steps do we require at least for
+        // reaching the target configuration?
+        let mut estimate = 0;
+
+        for (x, y) in self.amphipods.iter().copied() {
+            let color = self.fields[(x, y)].unwrap().as_amphipod().unwrap();
+            // Find where it belongs
+            let zone_x = match color {
+                Color::Amber => 3,
+                Color::Bronze => 5,
+                Color::Copper => 7,
+                Color::Desert => 9,
+            };
+            if zone_x != x {
+                estimate += cost(color, absdiff(zone_x, x) + (y - 1) + 1);
+            }
+        }
+        estimate
     }
 }
 
