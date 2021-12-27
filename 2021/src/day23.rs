@@ -35,13 +35,13 @@ fn solve_iter<const CAVE_HEIGHT: u32>(board: &mut Board<CAVE_HEIGHT>) -> u32 {
         if allmoves.len() == last_move {
             // nothing to do here anymore, undo move
             if let Some(mov) = moves.pop() {
-                current_total -= mov.cost();
+                current_total -= mov.cost;
                 board.undo_move(&mov);
             }
             choices.pop();
         } else {
             let next = allmoves.pop().expect("must have move");
-            let cost = next.cost();
+            let cost = next.cost;
             if current_total + cost > best_so_far {
                 continue;
             }
@@ -145,30 +145,29 @@ struct Move {
     amphipod: Color,
     from: (u32, u32),
     to: (u32, u32),
-}
-
-impl Move {
-    pub fn cost(&self) -> u32 {
-        let dist = manhattan(self.from, self.to);
-        let multiplier = match self.amphipod {
-            Color::Amber => 1,
-            Color::Bronze => 10,
-            Color::Copper => 100,
-            Color::Desert => 1000,
-        };
-        dist * multiplier
-    }
+    cost: u32,
 }
 
 fn manhattan((x1, y1): (u32, u32), (x2, y2): (u32, u32)) -> u32 {
-    fn absdiff(a: u32, b: u32) -> u32 {
-        if a < b {
-            b - a
-        } else {
-            a - b
-        }
-    }
     absdiff(x1, x2) + absdiff(y1, y2)
+}
+
+fn absdiff(a: u32, b: u32) -> u32 {
+    if a < b {
+        b - a
+    } else {
+        a - b
+    }
+}
+
+fn cost(color: Color, dist: u32) -> u32 {
+    let multiplier = match color {
+        Color::Amber => 1,
+        Color::Bronze => 10,
+        Color::Copper => 100,
+        Color::Desert => 1000,
+    };
+    dist * multiplier
 }
 
 #[derive(Debug)]
@@ -206,28 +205,35 @@ impl<const CAVE_HEIGHT: u32> Board<CAVE_HEIGHT> {
                     Color::Copper => 7,
                     Color::Desert => 9,
                 };
-                if y == 1 {
-                    // Can we move to the target cave
-                    if self.path_to_cave_free(x, zone_x) {
-                        // Check if we can enter the target cave
-                        let target_y = (2..2 + CAVE_HEIGHT)
-                            .rev()
-                            .find(|cy| matches!(self.fields[(zone_x, *cy)], Some(Field::Hallway)));
-                        if let Some(target_y) = target_y {
-                            // Check if all others have the same color
-
-                            let same_color = (target_y + 1..2 + CAVE_HEIGHT).all(|cy| {
-                                self.fields[(zone_x, cy)] == Some(Field::Amphipod(color))
-                            });
-                            if same_color {
-                                // we can move in
-                                moves.push(Move {
-                                    amphipod: color,
-                                    from: (x, y),
-                                    to: (zone_x, target_y),
-                                })
-                            }
+                // Can we move to the target cave?
+                let target_pos_free = if self.path_to_cave_free(x, zone_x) {
+                    // Check if we can enter the target cave
+                    let target_y = (2..2 + CAVE_HEIGHT)
+                        .rev()
+                        .find(|cy| matches!(self.fields[(zone_x, *cy)], Some(Field::Hallway)));
+                    target_y.and_then(|target_y| {
+                        // Check if all others have the same color
+                        let same_color = (target_y + 1..2 + CAVE_HEIGHT)
+                            .all(|cy| self.fields[(zone_x, cy)] == Some(Field::Amphipod(color)));
+                        if same_color {
+                            // we can move in
+                            Some((zone_x, target_y))
+                        } else {
+                            None
                         }
+                    })
+                } else {
+                    None
+                };
+                if y == 1 {
+                    if let Some(target) = target_pos_free {
+                        // when in the hallway, always make the move
+                        moves.push(Move {
+                            from: (x, y),
+                            to: target,
+                            amphipod: color,
+                            cost: cost(color, manhattan((x, y), target)),
+                        });
                     }
                 } else {
                     // In a cave
@@ -254,6 +260,17 @@ impl<const CAVE_HEIGHT: u32> Board<CAVE_HEIGHT> {
                         }
                     }
 
+                    // if direct path to target is available, always use that
+                    if let Some(target) = target_pos_free {
+                        moves.push(Move {
+                            from: (x, y),
+                            to: target,
+                            amphipod: color,
+                            cost: cost(color, absdiff(target.0, x) + (y - 1) + (target.1 - 1)),
+                        });
+                        continue;
+                    }
+
                     // Check where we can go:
                     for tx in x + 1..=11 {
                         if matches!(self.fields[(tx, 1)], Some(Field::Hallway)) {
@@ -262,6 +279,7 @@ impl<const CAVE_HEIGHT: u32> Board<CAVE_HEIGHT> {
                                     amphipod: color,
                                     from: (x, y),
                                     to: (tx, 1),
+                                    cost: cost(color, manhattan((x, y), (tx, 1))),
                                 })
                             }
                         } else {
@@ -275,6 +293,7 @@ impl<const CAVE_HEIGHT: u32> Board<CAVE_HEIGHT> {
                                     amphipod: color,
                                     from: (x, y),
                                     to: (tx, 1),
+                                    cost: cost(color, manhattan((x, y), (tx, 1))),
                                 })
                             }
                         } else {
@@ -287,9 +306,6 @@ impl<const CAVE_HEIGHT: u32> Board<CAVE_HEIGHT> {
     }
 
     pub fn path_to_cave_free(&self, from_x: u32, cave_x: u32) -> bool {
-        // source must be an amphipod
-        assert!(matches!(self.fields[(from_x, 1)], Some(Field::Amphipod(_))));
-
         if from_x > cave_x {
             for x in (cave_x..from_x).rev() {
                 if !matches!(self.fields[(x, 1)], Some(Field::Hallway)) {
