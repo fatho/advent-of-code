@@ -17,7 +17,7 @@ pub static RUN: Day = Day { part1, part2 };
 // TODO: definitely needs a performance upgrade
 
 pub fn part1(input: &[u8]) -> anyhow::Result<String> {
-    let mut scanners = parsers::parse(p_input, input)?;
+    let scanners = parsers::parse(p_input, input)?;
 
     let (absolute_points, _) = match_point_clouds(scanners)?;
     Ok(absolute_points.len().to_string())
@@ -41,13 +41,14 @@ pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     Ok(largest.to_string())
 }
 
-fn match_point_clouds(
-    mut scanners: Vec<Scanner>,
-) -> Result<(FxHashSet<Vec3>, Vec<Vec3>), anyhow::Error> {
+fn match_point_clouds(mut scanners: Vec<Scanner>) -> Result<(Vec<Vec3>, Vec<Vec3>), anyhow::Error> {
     let ref_scanner = scanners.pop().context("must have at leat one scanner")?;
     let mut scanner_positions = vec![Vec3::new(0, 0, 0)];
 
-    let mut absolute_points = ref_scanner.points.iter().copied().collect::<FxHashSet<_>>();
+    let mut absolute_points = PointSet::default();
+    ref_scanner.points.iter().copied().for_each(|p| {
+        absolute_points.insert(p);
+    });
     let mut reference_points = ref_scanner.points;
     let mut worklist = scanners
         .into_iter()
@@ -75,11 +76,11 @@ fn match_point_clouds(
             }
         }
     }
-    Ok((absolute_points, scanner_positions))
+    Ok((reference_points, scanner_positions))
 }
 
 fn match_scanner(
-    final_points: &FxHashSet<Vec3>,
+    final_points: &PointSet,
     reference_points: &[Vec3],
     scanner: &Scanner,
     threshold: u32,
@@ -218,17 +219,48 @@ impl Orientation {
         }
     }
 
+    #[inline(always)]
     pub fn local_to_global(&self, v: Vec3) -> Vec3 {
         self.fwd * v.x + self.up * v.y + self.right * v.z
     }
+}
 
-    pub fn global_to_local(&self, v: Vec3) -> Vec3 {
-        Vec3 {
-            x: self.fwd.dot(v),
-            y: self.up.dot(v),
-            z: self.right.dot(v),
+#[derive(Default)]
+struct PointSet {
+    points: FxHashSet<Vec3>,
+    xyz: Vec<u64>,
+}
+
+impl PointSet {
+    #[inline(always)]
+    pub fn insert(&mut self, point: Vec3) -> bool {
+        let xyz = zigzag(point.x + point.y + point.z);
+        let word = (xyz >> 6) as usize;
+        let bit = xyz & 0b11_1111;
+
+        if word >= self.xyz.len() {
+            self.xyz.resize(word * 2, 0)
         }
+        self.xyz[word] |= 1 << bit;
+
+        self.points.insert(point)
     }
+
+    #[inline(always)]
+    pub fn contains(&self, point: &Vec3) -> bool {
+        let xyz = zigzag(point.x + point.y + point.z);
+        let word = (xyz >> 6) as usize;
+        let bit = xyz & 0b11_1111;
+
+        self.xyz.get(word).map_or(false, move |w| {
+            w & (1 << bit) != 0 && self.points.contains(point)
+        })
+    }
+}
+
+#[inline(always)]
+fn zigzag(n: i32) -> u32 {
+    ((n << 1) ^ (n >> 31)) as u32
 }
 
 const ORIENTATIONS: [Orientation; 24] = [
