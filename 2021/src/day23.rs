@@ -368,6 +368,7 @@ impl<const CAVE_HEIGHT: u32> Board<CAVE_HEIGHT> {
         // If we disregard collisions, how many steps do we require at least for
         // reaching the target configuration?
         let mut estimate = 0;
+        let mut zone_cost = [1; 4];
 
         for (x, y) in self.amphipods.iter().copied() {
             let color = self.fields[(x, y)].unwrap().as_amphipod().unwrap();
@@ -379,7 +380,15 @@ impl<const CAVE_HEIGHT: u32> Board<CAVE_HEIGHT> {
                 Color::Desert => 9,
             };
             if zone_x != x {
-                estimate += cost(color, absdiff(zone_x, x) + (y - 1) + 1);
+                estimate += cost(
+                    color,
+                    absdiff(zone_x, x) + (y - 1) + zone_cost[color as usize],
+                );
+                // putting each subsequent into the cave is more expensive
+                // (actually it's the other way around, but for the sake of
+                // estimation, we err on the cheaper side and count up from 1
+                // rather than down from CAVE_HEIGHT).
+                zone_cost[color as usize] += 1;
             }
         }
         estimate
