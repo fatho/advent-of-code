@@ -205,66 +205,56 @@ impl Cuboid {
             // No overlap, return whole
             output.push(*self);
             return;
-        } else if &chunk == self {
-            // full overlap, delete everything
-            return;
         }
 
-        let parts = [
             // Z-top
-            Cuboid {
+        if self.zmin() < chunk.zmin() {
+            output.push(Cuboid {
                 x: self.x,
                 y: self.y,
                 z: (self.zmin()..=chunk.zmin() - 1).into(),
-            },
+            });
+        }
             // Z-bottom
-            Cuboid {
+        if chunk.zmax() < self.zmax() {
+            output.push(Cuboid {
                 x: self.x,
                 y: self.y,
                 z: (chunk.zmax() + 1..=self.zmax()).into(),
-            },
+            });
+        }
             // X-left
-            Cuboid {
+        if self.xmin() < chunk.xmin() {
+            output.push(Cuboid {
                 x: (self.xmin()..=chunk.xmin() - 1).into(),
                 y: self.y,
                 z: chunk.z,
-            },
+            });
+        }
             // X-right
-            Cuboid {
+        if chunk.xmax() < self.xmax() {
+            output.push(Cuboid {
                 x: (chunk.xmax() + 1..=self.xmax()).into(),
                 y: self.y,
                 z: chunk.z,
-            },
+            });
+        }
             // Y-left
-            Cuboid {
+        if self.ymin() < chunk.ymin() {
+            output.push(Cuboid {
                 x: chunk.x,
                 y: (self.ymin()..=chunk.ymin() - 1).into(),
                 z: chunk.z,
-            },
+            });
+        }
             // Y-right
-            Cuboid {
+        if chunk.ymax() < self.ymax() {
+            output.push(Cuboid {
                 x: chunk.x,
                 y: (chunk.ymax() + 1..=self.ymax()).into(),
                 z: chunk.z,
-            },
-        ];
-
-        let mut part_volume = chunk.volume();
-        for part in parts.iter() {
-            if !part.is_empty() {
-                part_volume += part.volume();
-                output.push(*part);
+            });
             }
-        }
-        // Sanity check that the parts indeed add up to the whole again
-        debug_assert_eq!(
-            part_volume,
-            self.volume(),
-            "{:?} + {:?} == {:?}",
-            parts,
-            chunk,
-            self
-        );
     }
 }
 
