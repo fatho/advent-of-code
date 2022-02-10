@@ -17,9 +17,9 @@ pub fn part1(input: &[u8]) -> anyhow::Result<String> {
 
     const TARGET: RangeInclusive<i32> = -50..=50;
     let target_cube = Cuboid {
-        x: TARGET,
-        y: TARGET,
-        z: TARGET,
+        x: TARGET.into(),
+        y: TARGET.into(),
+        z: TARGET.into(),
     };
 
     let mut on_ranges: Vec<Cuboid> = Vec::new();
@@ -28,9 +28,9 @@ pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     // Invariant: on_ranges do not overlap
     for cmd in input {
         let clamped_cuboid = target_cube.intersect(&Cuboid {
-            x: cmd.x.clone(),
-            y: cmd.y.clone(),
-            z: cmd.z.clone(),
+            x: cmd.x.clone().into(),
+            y: cmd.y.clone().into(),
+            z: cmd.z.clone().into(),
         });
         if clamped_cuboid.is_empty() {
             continue;
@@ -49,9 +49,9 @@ pub fn part1(input: &[u8]) -> anyhow::Result<String> {
             for on in on_ranges.drain(..) {
                 on.subtract(
                     &Cuboid {
-                        x: cmd.x.clone(),
-                        y: cmd.y.clone(),
-                        z: cmd.z.clone(),
+                        x: cmd.x.clone().into(),
+                        y: cmd.y.clone().into(),
+                        z: cmd.z.clone().into(),
                     },
                     &mut tmp,
                 );
@@ -76,9 +76,9 @@ pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     for cmd in input {
         if cmd.on {
             new.push(Cuboid {
-                x: cmd.x.clone(),
-                y: cmd.y.clone(),
-                z: cmd.z.clone(),
+                x: cmd.x.clone().into(),
+                y: cmd.y.clone().into(),
+                z: cmd.z.clone().into(),
             });
             for on in on_ranges.iter() {
                 for n in new.iter() {
@@ -92,9 +92,9 @@ pub fn part2(input: &[u8]) -> anyhow::Result<String> {
             for on in on_ranges.drain(..) {
                 on.subtract(
                     &Cuboid {
-                        x: cmd.x.clone(),
-                        y: cmd.y.clone(),
-                        z: cmd.z.clone(),
+                        x: cmd.x.clone().into(),
+                        y: cmd.y.clone().into(),
+                        z: cmd.z.clone().into(),
                     },
                     &mut tmp,
                 );
@@ -136,51 +136,66 @@ fn p_range(input: &[u8]) -> IResult<&[u8], RangeInclusive<i32>> {
     )(input)
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+struct CoordRange {
+    start: i32,
+    end: i32,
+}
+
+impl From<RangeInclusive<i32>> for CoordRange {
+    fn from(r: RangeInclusive<i32>) -> Self {
+        Self {
+            start: *r.start(),
+            end: *r.end(),
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 struct Cuboid {
-    x: RangeInclusive<i32>,
-    y: RangeInclusive<i32>,
-    z: RangeInclusive<i32>,
+    x: CoordRange,
+    y: CoordRange,
+    z: CoordRange,
 }
 
 impl Cuboid {
     pub fn is_empty(&self) -> bool {
-        [&self.x, &self.y, &self.z]
+        [self.x, self.y, self.z]
             .into_iter()
-            .any(|coords| coords.end() < coords.start())
+            .any(|coords| coords.end < coords.start)
     }
 
     pub fn intersect(&self, other: &Cuboid) -> Cuboid {
         Cuboid {
-            x: *self.x.start().max(other.x.start())..=*self.x.end().min(other.x.end()),
-            y: *self.y.start().max(other.y.start())..=*self.y.end().min(other.y.end()),
-            z: *self.z.start().max(other.z.start())..=*self.z.end().min(other.z.end()),
+            x: (self.x.start.max(other.x.start)..=self.x.end.min(other.x.end)).into(),
+            y: (self.y.start.max(other.y.start)..=self.y.end.min(other.y.end)).into(),
+            z: (self.z.start.max(other.z.start)..=self.z.end.min(other.z.end)).into(),
         }
     }
 
     pub fn volume(&self) -> usize {
-        (self.x.end() - self.x.start() + 1) as usize
-            * (self.y.end() - self.y.start() + 1) as usize
-            * (self.z.end() - self.z.start() + 1) as usize
+        (self.x.end - self.x.start + 1) as usize
+            * (self.y.end - self.y.start + 1) as usize
+            * (self.z.end - self.z.start + 1) as usize
     }
 
     pub fn xmin(&self) -> i32 {
-        *self.x.start()
+        self.x.start
     }
     pub fn xmax(&self) -> i32 {
-        *self.x.end()
+        self.x.end
     }
     pub fn ymin(&self) -> i32 {
-        *self.y.start()
+        self.y.start
     }
     pub fn ymax(&self) -> i32 {
-        *self.y.end()
+        self.y.end
     }
     pub fn zmin(&self) -> i32 {
-        *self.z.start()
+        self.z.start
     }
     pub fn zmax(&self) -> i32 {
-        *self.z.end()
+        self.z.end
     }
 
     pub fn subtract(&self, other: &Cuboid, output: &mut Vec<Cuboid>) {
@@ -188,7 +203,7 @@ impl Cuboid {
 
         if chunk.is_empty() {
             // No overlap, return whole
-            output.push(self.clone());
+            output.push(*self);
             return;
         } else if &chunk == self {
             // full overlap, delete everything
@@ -198,39 +213,39 @@ impl Cuboid {
         let parts = [
             // Z-top
             Cuboid {
-                x: self.x.clone(),
-                y: self.y.clone(),
-                z: self.zmin()..=chunk.zmin() - 1,
+                x: self.x,
+                y: self.y,
+                z: (self.zmin()..=chunk.zmin() - 1).into(),
             },
             // Z-bottom
             Cuboid {
-                x: self.x.clone(),
-                y: self.y.clone(),
-                z: chunk.zmax() + 1..=self.zmax(),
+                x: self.x,
+                y: self.y,
+                z: (chunk.zmax() + 1..=self.zmax()).into(),
             },
             // X-left
             Cuboid {
-                x: self.xmin()..=chunk.xmin() - 1,
-                y: self.y.clone(),
-                z: chunk.z.clone(),
+                x: (self.xmin()..=chunk.xmin() - 1).into(),
+                y: self.y,
+                z: chunk.z,
             },
             // X-right
             Cuboid {
-                x: chunk.xmax() + 1..=self.xmax(),
-                y: self.y.clone(),
-                z: chunk.z.clone(),
+                x: (chunk.xmax() + 1..=self.xmax()).into(),
+                y: self.y,
+                z: chunk.z,
             },
             // Y-left
             Cuboid {
-                x: chunk.x.clone(),
-                y: self.ymin()..=chunk.ymin() - 1,
-                z: chunk.z.clone(),
+                x: chunk.x,
+                y: (self.ymin()..=chunk.ymin() - 1).into(),
+                z: chunk.z,
             },
             // Y-right
             Cuboid {
-                x: chunk.x.clone(),
-                y: chunk.ymax() + 1..=self.ymax(),
-                z: chunk.z.clone(),
+                x: chunk.x,
+                y: (chunk.ymax() + 1..=self.ymax()).into(),
+                z: chunk.z,
             },
         ];
 
@@ -238,11 +253,11 @@ impl Cuboid {
         for part in parts.iter() {
             if !part.is_empty() {
                 part_volume += part.volume();
-                output.push(part.clone());
+                output.push(*part);
             }
         }
         // Sanity check that the parts indeed add up to the whole again
-        assert_eq!(
+        debug_assert_eq!(
             part_volume,
             self.volume(),
             "{:?} + {:?} == {:?}",
