@@ -319,13 +319,13 @@ impl<const CAVE_HEIGHT: u32> Board<CAVE_HEIGHT> {
 
     pub fn path_to_cave_free(&self, from_x: u32, cave_x: u32) -> bool {
         if from_x > cave_x {
-            for x in (cave_x..from_x).rev() {
+            for x in (cave_x + 1..from_x).rev() {
                 if !matches!(self.fields[(x, 1)], Some(Field::Hallway)) {
                     return false;
                 }
             }
         } else {
-            for x in from_x + 1..=cave_x {
+            for x in from_x + 1..cave_x {
                 if !matches!(self.fields[(x, 1)], Some(Field::Hallway)) {
                     return false;
                 }
