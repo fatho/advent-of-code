@@ -160,9 +160,7 @@ struct Cuboid {
 
 impl Cuboid {
     pub fn is_empty(&self) -> bool {
-        [self.x, self.y, self.z]
-            .into_iter()
-            .any(|coords| coords.end < coords.start)
+        self.x.end < self.x.start || self.y.end < self.y.start || self.z.end < self.z.start
     }
 
     pub fn intersect(&self, other: &Cuboid) -> Cuboid {
@@ -207,7 +205,7 @@ impl Cuboid {
             return;
         }
 
-            // Z-top
+        // Z-top
         if self.zmin() < chunk.zmin() {
             output.push(Cuboid {
                 x: self.x,
@@ -215,7 +213,7 @@ impl Cuboid {
                 z: (self.zmin()..=chunk.zmin() - 1).into(),
             });
         }
-            // Z-bottom
+        // Z-bottom
         if chunk.zmax() < self.zmax() {
             output.push(Cuboid {
                 x: self.x,
@@ -223,7 +221,7 @@ impl Cuboid {
                 z: (chunk.zmax() + 1..=self.zmax()).into(),
             });
         }
-            // X-left
+        // X-left
         if self.xmin() < chunk.xmin() {
             output.push(Cuboid {
                 x: (self.xmin()..=chunk.xmin() - 1).into(),
@@ -231,7 +229,7 @@ impl Cuboid {
                 z: chunk.z,
             });
         }
-            // X-right
+        // X-right
         if chunk.xmax() < self.xmax() {
             output.push(Cuboid {
                 x: (chunk.xmax() + 1..=self.xmax()).into(),
@@ -239,7 +237,7 @@ impl Cuboid {
                 z: chunk.z,
             });
         }
-            // Y-left
+        // Y-left
         if self.ymin() < chunk.ymin() {
             output.push(Cuboid {
                 x: chunk.x,
@@ -247,14 +245,14 @@ impl Cuboid {
                 z: chunk.z,
             });
         }
-            // Y-right
+        // Y-right
         if chunk.ymax() < self.ymax() {
             output.push(Cuboid {
                 x: chunk.x,
                 y: (chunk.ymax() + 1..=self.ymax()).into(),
                 z: chunk.z,
             });
-            }
+        }
     }
 }
 
