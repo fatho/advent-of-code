@@ -14,8 +14,6 @@ use nom::IResult;
 use rustc_hash::FxHashSet;
 pub static RUN: Day = Day { part1, part2 };
 
-// TODO: definitely needs a performance upgrade
-
 pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     let scanners = parsers::parse(p_input, input)?;
 
@@ -32,7 +30,7 @@ pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     for i in 0..scanner_positions.len() - 1 {
         for j in i..scanner_positions.len() {
             let delta = scanner_positions[i] - scanner_positions[j];
-            let manhattan = delta.x.abs() + delta.y.abs() + delta.z.abs();
+            let manhattan = delta.vs.iter().map(|v| v.abs()).sum();
             if manhattan > largest {
                 largest = manhattan;
             }
@@ -129,32 +127,30 @@ fn p_scanner(input: &[u8]) -> IResult<&[u8], Scanner> {
 fn p_relpnt(input: &[u8]) -> IResult<&[u8], Vec3> {
     map(
         tuple((numbers::i32, tag(","), numbers::i32, tag(","), numbers::i32)),
-        |(x, _, y, _, z)| Vec3 { x, y, z },
+        |(x, _, y, _, z)| Vec3::new(x, y, z),
     )(input)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct Vec3 {
-    x: i32,
-    y: i32,
-    z: i32,
+    vs: [i32; 3],
 }
 
 impl Vec3 {
     pub const fn new(x: i32, y: i32, z: i32) -> Self {
-        Self { x, y, z }
+        Self { vs: [x, y, z] }
     }
 
-    pub const fn cross(self, other: Vec3) -> Self {
-        Vec3 {
-            x: self.y * other.z - self.z * other.y,
-            y: self.z * other.x - self.x * other.z,
-            z: self.x * other.y - self.y * other.x,
-        }
+    pub const fn x(self) -> i32 {
+        self.vs[0]
     }
 
-    pub const fn dot(self, other: Vec3) -> i32 {
-        self.x * other.x + self.y * other.y + self.z * other.z
+    pub const fn y(self) -> i32 {
+        self.vs[1]
+    }
+
+    pub const fn z(self) -> i32 {
+        self.vs[2]
     }
 }
 
@@ -163,11 +159,7 @@ impl Add for Vec3 {
 
     #[inline]
     fn add(self, rhs: Self) -> Self::Output {
-        Vec3 {
-            x: self.x + rhs.x,
-            y: self.y + rhs.y,
-            z: self.z + rhs.z,
-        }
+        Vec3::new(self.x() + rhs.x(), self.y() + rhs.y(), self.z() + rhs.z())
     }
 }
 
@@ -176,11 +168,7 @@ impl Sub for Vec3 {
 
     #[inline]
     fn sub(self, rhs: Self) -> Self::Output {
-        Vec3 {
-            x: self.x - rhs.x,
-            y: self.y - rhs.y,
-            z: self.z - rhs.z,
-        }
+        Vec3::new(self.x() - rhs.x(), self.y() - rhs.y(), self.z() - rhs.z())
     }
 }
 
@@ -189,11 +177,7 @@ impl Mul<i32> for Vec3 {
 
     #[inline]
     fn mul(self, rhs: i32) -> Self::Output {
-        Vec3 {
-            x: self.x * rhs,
-            y: self.y * rhs,
-            z: self.z * rhs,
-        }
+        Vec3::new(self.x() * rhs, self.y() * rhs, self.z() * rhs)
     }
 }
 
@@ -201,28 +185,6 @@ impl Mul<i32> for Vec3 {
 struct Scanner {
     id: u32,
     points: Vec<Vec3>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct Orientation {
-    fwd: Vec3,
-    up: Vec3,
-    right: Vec3, // TODO: or is it left?
-}
-
-impl Orientation {
-    pub const fn new(fwd: Vec3, up: Vec3) -> Self {
-        Self {
-            fwd,
-            up,
-            right: fwd.cross(up),
-        }
-    }
-
-    #[inline(always)]
-    pub fn local_to_global(&self, v: Vec3) -> Vec3 {
-        self.fwd * v.x + self.up * v.y + self.right * v.z
-    }
 }
 
 #[derive(Default)]
@@ -234,7 +196,7 @@ struct PointSet {
 impl PointSet {
     #[inline(always)]
     pub fn insert(&mut self, point: Vec3) -> bool {
-        let xyz = zigzag(point.x + point.y + point.z);
+        let xyz = zigzag(point.vs.into_iter().sum());
         let word = (xyz >> 6) as usize;
         let bit = xyz & 0b11_1111;
 
@@ -248,7 +210,7 @@ impl PointSet {
 
     #[inline(always)]
     pub fn contains(&self, point: &Vec3) -> bool {
-        let xyz = zigzag(point.x + point.y + point.z);
+        let xyz = zigzag(point.vs.into_iter().sum());
         let word = (xyz >> 6) as usize;
         let bit = xyz & 0b11_1111;
 
@@ -263,44 +225,132 @@ fn zigzag(n: i32) -> u32 {
     ((n << 1) ^ (n >> 31)) as u32
 }
 
+/// All 24 possible orientations of a scanner.
 const ORIENTATIONS: [Orientation; 24] = [
-    // +X
-    Orientation::new(Vec3::new(1, 0, 0), Vec3::new(0, 1, 0)),
-    Orientation::new(Vec3::new(1, 0, 0), Vec3::new(0, 0, 1)),
-    Orientation::new(Vec3::new(1, 0, 0), Vec3::new(0, -1, 0)),
-    Orientation::new(Vec3::new(1, 0, 0), Vec3::new(0, 0, -1)),
-    // -X
-    Orientation::new(Vec3::new(-1, 0, 0), Vec3::new(0, 1, 0)),
-    Orientation::new(Vec3::new(-1, 0, 0), Vec3::new(0, 0, 1)),
-    Orientation::new(Vec3::new(-1, 0, 0), Vec3::new(0, -1, 0)),
-    Orientation::new(Vec3::new(-1, 0, 0), Vec3::new(0, 0, -1)),
-    // +Y
-    Orientation::new(Vec3::new(0, 1, 0), Vec3::new(1, 0, 0)),
-    Orientation::new(Vec3::new(0, 1, 0), Vec3::new(0, 0, 1)),
-    Orientation::new(Vec3::new(0, 1, 0), Vec3::new(-1, 0, 0)),
-    Orientation::new(Vec3::new(0, 1, 0), Vec3::new(0, 0, -1)),
-    // -Y
-    Orientation::new(Vec3::new(0, -1, 0), Vec3::new(1, 0, 0)),
-    Orientation::new(Vec3::new(0, -1, 0), Vec3::new(0, 0, 1)),
-    Orientation::new(Vec3::new(0, -1, 0), Vec3::new(-1, 0, 0)),
-    Orientation::new(Vec3::new(0, -1, 0), Vec3::new(0, 0, -1)),
-    // +Z
-    Orientation::new(Vec3::new(0, 0, 1), Vec3::new(1, 0, 0)),
-    Orientation::new(Vec3::new(0, 0, 1), Vec3::new(0, 1, 0)),
-    Orientation::new(Vec3::new(0, 0, 1), Vec3::new(-1, 0, 0)),
-    Orientation::new(Vec3::new(0, 0, 1), Vec3::new(0, -1, 0)),
-    // -Z
-    Orientation::new(Vec3::new(0, 0, -1), Vec3::new(1, 0, 0)),
-    Orientation::new(Vec3::new(0, 0, -1), Vec3::new(0, 1, 0)),
-    Orientation::new(Vec3::new(0, 0, -1), Vec3::new(-1, 0, 0)),
-    Orientation::new(Vec3::new(0, 0, -1), Vec3::new(0, -1, 0)),
+    Orientation {
+        perm: [0, 1, 2],
+        sign: [1, 1, 1],
+    },
+    Orientation {
+        perm: [0, 2, 1],
+        sign: [1, 1, -1],
+    },
+    Orientation {
+        perm: [0, 1, 2],
+        sign: [1, -1, -1],
+    },
+    Orientation {
+        perm: [0, 2, 1],
+        sign: [1, -1, 1],
+    },
+    Orientation {
+        perm: [0, 1, 2],
+        sign: [-1, 1, -1],
+    },
+    Orientation {
+        perm: [0, 2, 1],
+        sign: [-1, 1, 1],
+    },
+    Orientation {
+        perm: [0, 1, 2],
+        sign: [-1, -1, 1],
+    },
+    Orientation {
+        perm: [0, 2, 1],
+        sign: [-1, -1, -1],
+    },
+    Orientation {
+        perm: [1, 0, 2],
+        sign: [1, 1, -1],
+    },
+    Orientation {
+        perm: [1, 2, 0],
+        sign: [1, 1, 1],
+    },
+    Orientation {
+        perm: [1, 0, 2],
+        sign: [1, -1, 1],
+    },
+    Orientation {
+        perm: [1, 2, 0],
+        sign: [1, -1, -1],
+    },
+    Orientation {
+        perm: [1, 0, 2],
+        sign: [-1, 1, 1],
+    },
+    Orientation {
+        perm: [1, 2, 0],
+        sign: [-1, 1, -1],
+    },
+    Orientation {
+        perm: [1, 0, 2],
+        sign: [-1, -1, -1],
+    },
+    Orientation {
+        perm: [1, 2, 0],
+        sign: [-1, -1, 1],
+    },
+    Orientation {
+        perm: [2, 0, 1],
+        sign: [1, 1, 1],
+    },
+    Orientation {
+        perm: [2, 1, 0],
+        sign: [1, 1, -1],
+    },
+    Orientation {
+        perm: [2, 0, 1],
+        sign: [1, -1, -1],
+    },
+    Orientation {
+        perm: [2, 1, 0],
+        sign: [1, -1, 1],
+    },
+    Orientation {
+        perm: [2, 0, 1],
+        sign: [-1, 1, -1],
+    },
+    Orientation {
+        perm: [2, 1, 0],
+        sign: [-1, 1, 1],
+    },
+    Orientation {
+        perm: [2, 0, 1],
+        sign: [-1, -1, 1],
+    },
+    Orientation {
+        perm: [2, 1, 0],
+        sign: [-1, -1, -1],
+    },
 ];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Orientation {
+    /// Permutation of the vector components
+    perm: [u8; 3],
+    /// Rotation of the vector components
+    sign: [i8; 3],
+}
+
+impl Orientation {
+    #[inline(always)]
+    pub fn local_to_global(&self, v: Vec3) -> Vec3 {
+        Vec3 {
+            vs: [
+                self.sign[0] as i32 * v.vs[self.perm[0] as usize],
+                self.sign[1] as i32 * v.vs[self.perm[1] as usize],
+                self.sign[2] as i32 * v.vs[self.perm[2] as usize],
+            ],
+        }
+    }
+}
 
 #[test]
 fn test_p_relpnt() {
     assert_eq!(
         p_relpnt(b"1,-2,3").unwrap(),
-        (b"".as_ref(), Vec3 { x: 1, y: -2, z: 3 })
+        (b"".as_ref(), Vec3::new(1, -2, 3))
     );
 }
 
@@ -318,18 +368,7 @@ fn test_p_scanner() {
             b"".as_ref(),
             Scanner {
                 id: 0,
-                points: vec![
-                    Vec3 {
-                        x: 602,
-                        y: 365,
-                        z: -604
-                    },
-                    Vec3 {
-                        x: 309,
-                        y: -819,
-                        z: -775
-                    }
-                ]
+                points: vec![Vec3::new(602, 365, -604), Vec3::new(309, -819, -775)]
             }
         )
     );
@@ -337,18 +376,7 @@ fn test_p_scanner() {
 
 #[test]
 fn test_p_input() {
-    let points = vec![
-        Vec3 {
-            x: 602,
-            y: 365,
-            z: -604,
-        },
-        Vec3 {
-            x: 309,
-            y: -819,
-            z: -775,
-        },
-    ];
+    let points = vec![Vec3::new(602, 365, -604), Vec3::new(309, -819, -775)];
     assert_eq!(
         p_input(
             b"--- scanner 0 ---
