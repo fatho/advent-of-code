@@ -38,10 +38,13 @@ pub fn find_input<I: Iterator<Item = i64> + Clone>(validator: &[Inst], set: I) -
     let mut cache = HashSet::new();
 
     // Analyze problem for better pruning
-    let ranges = range_analysis(
+    let mut ranges = range_analysis(
         validator,
         RangeVal::inclusive(set.clone().min().unwrap(), set.clone().max().unwrap()),
     );
+    // After the last instruction, Z must be zero.
+    ranges.last_mut().unwrap()[Var::Z.index()] = RangeVal::exact(0);
+    restrict_ranges(validator, &mut ranges);
 
     // Perform the actual search
 
@@ -152,6 +155,17 @@ impl RangeVal {
             _ => RangeVal::inclusive(0, 1),
         }
     }
+
+    fn restrict(self, restriction: Self) -> Option<Self> {
+        if restriction.to < self.from || restriction.from > self.to {
+            None // no overlap, invalid
+        } else {
+            Some(RangeVal::inclusive(
+                self.from.max(restriction.from),
+                self.to.min(restriction.to),
+            ))
+        }
+    }
 }
 
 impl Add for RangeVal {
@@ -246,6 +260,8 @@ impl Div for RangeVal {
     }
 }
 
+/// Forward-pass through the program computing the possible ranges of each register after each
+/// instruction.
 fn range_analysis(prog: &[Inst], input: RangeVal) -> Vec<[RangeVal; 4]> {
     let mut state = [RangeVal::exact(0); 4];
     let mut states = vec![state];
@@ -266,11 +282,134 @@ fn range_analysis(prog: &[Inst], input: RangeVal) -> Vec<[RangeVal; 4]> {
     states
 }
 
+/// Backward pass through the program restricting the allowed ranges of each register before each
+/// instruction based on the restricted range behind them.
+/// The last entry in the `ranges` array is the restricted final state of the program.
+fn restrict_ranges(prog: &[Inst], ranges: &mut [[RangeVal; 4]]) {
+    assert!(ranges.len() == prog.len() + 1);
+
+    for (ip, inst) in prog.into_iter().enumerate().rev() {
+        let after = ranges[ip + 1];
+        let before = &mut ranges[ip];
+
+        // copy untouched variables
+        for var in [Var::W, Var::X, Var::Y, Var::Z] {
+            if inst.out_var() != var {
+                before[var.index()] = after[var.index()];
+            }
+        }
+
+        match inst {
+            // Static RHS
+            Inst::Add(a, Operand::Val(b)) => {
+                let out = after[a.index()];
+                before[a.index()] = before[a.index()]
+                    .restrict(RangeVal::inclusive(out.from - b, out.to - b))
+                    .unwrap();
+            }
+            Inst::Mul(a, Operand::Val(b)) => {
+                let out = after[a.index()];
+                if *b != 0 {
+                    before[a.index()] = before[a.index()]
+                        .restrict(RangeVal::inclusive(out.from / b, out.to / b))
+                        .unwrap();
+                }
+            }
+            Inst::Div(a, Operand::Val(b)) => {
+                let out = after[a.index()];
+                if *b > 0 {
+                    before[a.index()] = before[a.index()]
+                        .restrict(RangeVal::inclusive(
+                            out.from * b,
+                            out.to * b + (b - 1),
+                        ))
+                        .unwrap();
+                } else {
+                    // TODO: For a complete implementation, the other cases should also be
+                    // implemented. For the concrete advent of code solution, this should be enough.
+                }
+            }
+
+            // Dynamic RHS
+            Inst::Add(a, Operand::Var(b)) => {
+                let ra = after[a.index()];
+                let rb = after[b.index()];
+
+                before[a.index()] = before[a.index()]
+                    .restrict(RangeVal::inclusive(ra.from - rb.from, ra.to - rb.from))
+                    .unwrap();
+
+                let ba = before[a.index()];
+                before[b.index()] = before[b.index()]
+                    .restrict(RangeVal::inclusive(ra.from - ba.from, ra.to - ba.from))
+                    .unwrap();
+            }
+            Inst::Mul(a, Operand::Var(b)) => {
+                let ra = after[a.index()];
+                let rb = after[b.index()];
+
+                if ra.from >= 0 && rb.from > 0 {
+                    before[a.index()] = before[a.index()]
+                        .restrict(RangeVal::inclusive(ra.from / rb.to, ra.to / rb.from))
+                        .unwrap();
+                    let ba = before[a.index()];
+                    if ba.from > 0 {
+                        before[b.index()] = before[b.index()]
+                            .restrict(RangeVal::inclusive(ra.from / ba.to, ra.to / ba.from))
+                            .unwrap();
+                    }
+                } else {
+                    // TODO: For a complete implementation, the other cases should also be
+                    // implemented. For the concrete advent of code solution, this should be enough.
+                }
+            }
+
+            // Division with a dynamic RHS doesn't seem to occur in the code for now
+            Inst::Div(_, Operand::Var(_)) => {}
+
+            // By implementing these as well, it might be possible to propagate constraints back to
+            // the inputs, and use them to restrict the set of inputs that are even tried.
+            Inst::Inp(_) => {}
+            Inst::Eql(_, _) => {}
+
+            // Cannot infer any useful information from mod, input values could be anything.
+            Inst::Mod(_, _) => {}
+        }
+    }
+}
+
 fn range_operand(op: Operand, state: &[RangeVal; 4]) -> RangeVal {
     match op {
         Operand::Var(v) => state[v.index()],
         Operand::Val(v) => RangeVal::exact(v),
     }
+}
+
+#[allow(unused)]
+fn debug_print_ranges(
+    out: &mut dyn std::io::Write,
+    prog: &[Inst],
+    ranges: &[[RangeVal; 4]],
+) -> std::io::Result<()> {
+    assert!(ranges.len() == prog.len() + 1);
+
+    fn print_range_state(
+        out: &mut dyn std::io::Write,
+        state: [RangeVal; 4],
+    ) -> std::io::Result<()> {
+        writeln!(
+            out,
+            "w={}, x={}, y={}, z={}",
+            state[0], state[1], state[2], state[3]
+        )
+    }
+
+    print_range_state(out, ranges[0])?;
+    for (inst, state) in prog.into_iter().zip(ranges[1..].into_iter()) {
+        writeln!(out, "  {:?}", inst)?;
+        print_range_state(out, *state)?;
+    }
+    Ok(())
 }
 
 /// Cacheable state for the "seen states" HashSet.
@@ -383,10 +522,40 @@ pub enum Inst {
     Eql(Var, Operand),
 }
 
+impl Inst {
+    pub fn out_var(&self) -> Var{
+        match *self {
+            Inst::Inp(v) => v,
+            Inst::Add(v, _) => v,
+            Inst::Mul(v, _) => v,
+            Inst::Div(v, _) => v,
+            Inst::Mod(v, _) => v,
+            Inst::Eql(v, _) => v,
+        }
+    }
+
+    pub fn uses_var(&self, var: Var) -> bool {
+        match *self {
+            Inst::Inp(v) => v == var,
+            Inst::Add(v, op) => v == var || op.uses_var(var),
+            Inst::Mul(v, op) => v == var || op.uses_var(var),
+            Inst::Div(v, op) => v == var || op.uses_var(var),
+            Inst::Mod(v, op) => v == var || op.uses_var(var),
+            Inst::Eql(v, op) => v == var || op.uses_var(var),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Operand {
     Var(Var),
     Val(i64),
+}
+
+impl Operand {
+    pub fn uses_var(&self, var: Var) -> bool {
+        *self == Operand::Var(var)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
