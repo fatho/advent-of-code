@@ -61,7 +61,13 @@ pub fn find_input<I: Iterator<Item = i64> + Clone>(validator: &[Inst], set: I) -
             states.push(cur_state.clone());
             cur_state.step_input(validator, cur);
 
-            if !cache.insert(cur_state.clone()) {
+            let is_valid = cur_state
+                .state
+                .into_iter()
+                .zip(ranges[cur_state.ip].into_iter())
+                .all(|(v, r)| r.contains(v));
+
+            if !is_valid || !cache.insert(cur_state.clone()) {
                 // if we've seen this state before, it means we entered it with
                 // higher preceding digits already, and didn't find a solution
                 // then. So we won't find a solution now either.
