@@ -35,7 +35,7 @@ pub fn part2(input: &[u8]) -> anyhow::Result<String> {
 }
 
 pub fn find_input<I: Iterator<Item = i64> + Clone>(validator: &[Inst], set: I) -> Vec<i64> {
-    let mut cache = HashSet::new();
+    let mut cache = rustc_hash::FxHashSet::default();
 
     // Analyze problem for better pruning
     let mut ranges = range_analysis(
@@ -460,10 +460,12 @@ impl State {
         }
     }
 
+    #[inline(always)]
     fn var(&self, var: Var) -> i64 {
         self.state[var.index()]
     }
 
+    #[inline(always)]
     fn operand(&self, op: Operand) -> i64 {
         match op {
             Operand::Var(v) => self.var(v),
