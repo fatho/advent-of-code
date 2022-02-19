@@ -59,18 +59,19 @@ pub fn find_input<I: Iterator<Item = i64> + Clone>(validator: &[Inst], set: I) -
 
     choices.push(set.clone());
 
-    while let Some(choice) = choices.last_mut() {
+    'outer: while let Some(choice) = choices.last_mut() {
         if let Some(cur) = choice.next() {
             states.push(cur_state.clone());
             cur_state.step_input(validator, cur);
 
-            let is_valid = cur_state
-                .state
-                .into_iter()
-                .zip(ranges[cur_state.ip].into_iter())
-                .all(|(v, r)| r.contains(v));
+            for v in 0..4 {
+                if ! ranges[cur_state.ip][v].contains(cur_state.state[v]) {
+                    cur_state = states.pop().unwrap();
+                    continue 'outer;
+                }
+            }
 
-            if !is_valid || !cache.insert(cur_state.clone()) {
+            if !cache.insert(cur_state.clone()) {
                 // if we've seen this state before, it means we entered it with
                 // higher preceding digits already, and didn't find a solution
                 // then. So we won't find a solution now either.
