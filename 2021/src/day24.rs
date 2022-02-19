@@ -41,10 +41,7 @@ pub fn find_input<I: Iterator<Item = i64> + Clone>(validator: &[Inst], set: I) -
     let mut choices = Vec::new();
     let mut input = Vec::new();
     let mut states = Vec::new();
-    let mut cur_state = State {
-        ip: 0,
-        state: [0; 4],
-    };
+    let mut cur_state = State::new();
 
     choices.push(set.clone());
 
@@ -91,6 +88,23 @@ struct State {
 }
 
 impl State {
+    pub fn new() -> Self {
+        State {
+            ip: 0,
+            state: [0; 4],
+        }
+    }
+
+    // The ALU is a four-dimensional processing unit: it has integer variables w, x, y, and z. These variables all start with the value 0. The ALU also supports six instructions:
+
+    //     inp a - Read an input value and write it to variable a.
+    //     add a b - Add the value of a to the value of b, then store the result in variable a.
+    //     mul a b - Multiply the value of a by the value of b, then store the result in variable a.
+    //     div a b - Divide the value of a by the value of b, truncate the result to an integer, then store the result in variable a. (Here, "truncate" means to round the value toward zero.)
+    //     mod a b - Divide the value of a by the value of b, then store the remainder in variable a. (This is also called the modulo operation.)
+    //     eql a b - If the value of a and b are equal, then store the value 1 in variable a. Otherwise, store the value 0 in variable a.
+
+    /// Run the ALU program until the next input instruction.
     fn step_input(&mut self, prog: &[Inst], input: i64) {
         let mut consumed_input = false;
         while self.ip < prog.len() {
@@ -166,43 +180,6 @@ fn p_var(input: &[u8]) -> IResult<&[u8], Var> {
     })(input)
 }
 
-// The ALU is a four-dimensional processing unit: it has integer variables w, x, y, and z. These variables all start with the value 0. The ALU also supports six instructions:
-
-//     inp a - Read an input value and write it to variable a.
-//     add a b - Add the value of a to the value of b, then store the result in variable a.
-//     mul a b - Multiply the value of a by the value of b, then store the result in variable a.
-//     div a b - Divide the value of a by the value of b, truncate the result to an integer, then store the result in variable a. (Here, "truncate" means to round the value toward zero.)
-//     mod a b - Divide the value of a by the value of b, then store the remainder in variable a. (This is also called the modulo operation.)
-//     eql a b - If the value of a and b are equal, then store the value 1 in variable a. Otherwise, store the value 0 in variable a.
-
-pub fn run(prog: &[Inst], input: &[i64]) -> [i64; 4] {
-    let mut state = [0; 4];
-    let mut input_index = 0;
-    for inst in prog {
-        match inst {
-            Inst::Inp(target) => {
-                state[target.index()] = input[input_index];
-                input_index += 1
-            }
-            Inst::Add(a, b) => binop(&mut state, *a, *b, |av, bv| av + bv),
-            Inst::Mul(a, b) => binop(&mut state, *a, *b, |av, bv| av * bv),
-            Inst::Div(a, b) => binop(&mut state, *a, *b, |av, bv| av / bv),
-            Inst::Mod(a, b) => binop(&mut state, *a, *b, |av, bv| av % bv),
-            Inst::Eql(a, b) => binop(&mut state, *a, *b, |av, bv| (av == bv) as i64),
-        }
-    }
-    state
-}
-
-fn binop<F: Fn(i64, i64) -> i64>(state: &mut [i64; 4], a: Var, b: Operand, run: F) {
-    let aval = state[a.index()];
-    let bval = match b {
-        Operand::Var(var) => state[var.index()],
-        Operand::Val(val) => val,
-    };
-    state[a.index()] = run(aval, bval);
-}
-
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Inst {
     Inp(Var),
@@ -261,8 +238,13 @@ mod w 2
         .unwrap();
         assert_eq!(rest.len(), 0);
 
-        assert_eq!(run(&prog, &[0b1010]), [1, 0, 1, 0]);
-        assert_eq!(run(&prog, &[0b0101]), [0, 1, 0, 1]);
+        let mut st = State::new();
+        st.step_input(&prog, 0b1010);
+        assert_eq!(st.state, [1, 0, 1, 0]);
+
+        let mut st = State::new();
+        st.step_input(&prog, 0b0101);
+        assert_eq!(st.state, [0, 1, 0, 1]);
     }
 }
 
