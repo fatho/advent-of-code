@@ -65,7 +65,7 @@ pub fn find_input<I: Iterator<Item = i64> + Clone>(validator: &[Inst], set: I) -
             cur_state.step_input(validator, cur);
 
             for v in 0..4 {
-                if ! ranges[cur_state.ip][v].contains(cur_state.state[v]) {
+                if !ranges[cur_state.ip][v].contains(cur_state.state[v]) {
                     cur_state = states.pop().unwrap();
                     continue 'outer;
                 }
@@ -320,10 +320,7 @@ fn restrict_ranges(prog: &[Inst], ranges: &mut [[RangeVal; 4]]) {
                 let out = after[a.index()];
                 if *b > 0 {
                     before[a.index()] = before[a.index()]
-                        .restrict(RangeVal::inclusive(
-                            out.from * b,
-                            out.to * b + (b - 1),
-                        ))
+                        .restrict(RangeVal::inclusive(out.from * b, out.to * b + (b - 1)))
                         .unwrap();
                 } else {
                     // TODO: For a complete implementation, the other cases should also be
@@ -526,7 +523,7 @@ pub enum Inst {
 }
 
 impl Inst {
-    pub fn out_var(&self) -> Var{
+    pub fn out_var(&self) -> Var {
         match *self {
             Inst::Inp(v) => v,
             Inst::Add(v, _) => v,
@@ -576,6 +573,202 @@ impl Var {
             Var::X => 1,
             Var::Y => 2,
             Var::Z => 3,
+        }
+    }
+}
+
+mod compiler {
+    use std::arch::asm;
+
+    use super::{Inst, Operand, Var};
+
+    // W: RDI
+    // X: RSI
+    // Y: RDX
+    // Z: RCX
+    //
+    // Input: R8, R9,
+
+    struct Assembler {
+        code: Vec<u8>,
+    }
+
+    impl Assembler {
+        fn new() -> Self {
+            Self { code: vec![] }
+        }
+
+        fn position(&self) -> usize {
+            self.code.len()
+        }
+
+        fn emit_ret(&mut self) {
+            self.code.push(0xc3);
+        }
+
+        fn emit_sete(&mut self, target: u8) {
+            self.code
+                .extend([0x0f, 0x94, 0b1100_0000 | (target & 0b111)]);
+        }
+
+        fn emit_mod_rm<const N: usize>(&mut self, opcode: [u8; N], reg: u8, rm: u8) {
+            // [0100|WRXC]
+            // W: wide
+            // R: extension reg
+            // X: extension SIB index
+            // C: extenion rm
+            let mut rex = 0b0100_1000;
+            if reg >= 8 {
+                rex |= 0b0100;
+            }
+            if rm >= 8 {
+                rex |= 0b0001;
+            }
+            self.code.push(rex);
+            self.code.extend(opcode);
+            // 11 means register direct addressing
+            // next 3 bits are reg, last 3 bits rm
+            let mod_rm = 0b11000000 | (reg & 0b111) << 3 | (rm & 0b111);
+            self.code.push(mod_rm);
+        }
+    }
+
+    fn compile(prog: &[Inst]) -> Vec<u8> {
+        let mut offsets = vec![0];
+        let mut asm = Assembler::new();
+        let mut first_input = true;
+
+        for inst in prog {
+            match inst {
+                Inst::Inp(a) => {
+                    if first_input {
+                        first_input = false;
+                    } else {
+                        offsets.push(asm.position());
+                        asm.emit_ret();
+                    }
+                    asm.emit_mod_rm([0x89], 12, var_reg(*a));
+                }
+                Inst::Add(a, Operand::Var(b)) => {
+                    asm.emit_mod_rm([0x01], var_reg(*b), var_reg(*a));
+                }
+                Inst::Mul(a, Operand::Var(b)) => {
+                    asm.emit_mod_rm([0x0F, 0xAF], var_reg(*b), var_reg(*a));
+                }
+                Inst::Div(a, Operand::Var(b)) => {
+                    // clear RDX
+                    asm.emit_mod_rm([0x31], 2, 2);
+                    // store dividend in RAX
+                    asm.emit_mod_rm([0x89], var_reg(*a), 0);
+                    // divide by var
+                    asm.emit_mod_rm([0xF7], 0b111, var_reg(*b));
+                    // copy result (RAX) into var
+                    asm.emit_mod_rm([0x89], 0, var_reg(*a));
+                }
+                Inst::Mod(a, Operand::Var(b)) => {
+                    // clear RDX
+                    asm.emit_mod_rm([0x31], 2, 2);
+                    // store dividend in RAX
+                    asm.emit_mod_rm([0x89], var_reg(*a), 0);
+                    // divide by var
+                    asm.emit_mod_rm([0xF7], 0b111, var_reg(*b));
+                    // copy remainder (RDX) into var
+                    asm.emit_mod_rm([0x89], 2, var_reg(*a));
+                }
+                Inst::Eql(a, Operand::Var(b)) => {
+                    // clear RAX
+                    asm.emit_mod_rm([0x31], 0, 0);
+                    // compare
+                    asm.emit_mod_rm([0x39], var_reg(*a), var_reg(*b));
+                    // store result in RAX
+                    asm.emit_sete(0);
+                    // copy RAX to var
+                    asm.emit_mod_rm([0x89], 0, var_reg(*a));
+                }
+
+                Inst::Add(a, Operand::Val(b)) => todo!(),
+                Inst::Mul(a, Operand::Val(b)) => todo!(),
+                Inst::Div(a, Operand::Val(b)) => todo!(),
+                Inst::Mod(a, Operand::Val(b)) => todo!(),
+                Inst::Eql(a, Operand::Val(b)) => todo!(),
+            }
+        }
+
+        asm.emit_ret();
+
+        asm.code
+    }
+
+    struct Exe {
+        base: *mut libc::c_void,
+        len: usize,
+    }
+
+    impl Exe {
+        pub fn new(code: &[u8]) -> Option<Self> {
+            let len = (code.len() + 0xfff) / 0x1000 * 0x1000;
+            unsafe {
+                let base = libc::mmap(
+                    std::ptr::null_mut(),
+                    len,
+                    libc::PROT_EXEC | libc::PROT_READ | libc::PROT_WRITE,
+                    libc::MAP_ANONYMOUS | libc::MAP_PRIVATE,
+                    -1,
+                    0,
+                );
+                if base.is_null() {
+                    return None;
+                }
+                // create nop slide
+                libc::memset(base, 0x90, len);
+                // copy code to start
+                libc::memcpy(base, code.as_ptr() as *const libc::c_void, code.len());
+                Some(Exe { base, len })
+            }
+        }
+
+        pub unsafe fn exec(&self, offset: usize, mut state: [i64; 4]) -> [i64; 4] {
+            let target = self.base as usize + offset;
+            asm!(
+                "call rax",
+                in("rax") target,
+                inout("r8") state[0],
+                inout("r9") state[1],
+                inout("r10") state[2],
+                inout("r11") state[3],
+            );
+            state
+        }
+    }
+
+    impl Drop for Exe {
+        fn drop(&mut self) {
+            unsafe {
+                libc::munmap(self.base, self.len);
+            }
+        }
+    }
+
+    fn var_reg(var: Var) -> u8 {
+        match var {
+            Var::W => 8,  // R8
+            Var::X => 9,  // R9
+            Var::Y => 10, // R10
+            Var::Z => 11, // R11
+        }
+    }
+
+    #[test]
+    fn test_compile() {
+        let code = compile(&[Inst::Div(Var::Y, Operand::Var(Var::X))]);
+        assert_eq!(
+            code,
+            vec![0x48, 0x31, 0xD2, 0x4C, 0x89, 0xD0, 0x49, 0xF7, 0xF9, 0x49, 0x89, 0xC2, 0xC3]
+        );
+        unsafe {
+            let exe = Exe::new(&code).unwrap();
+            let new = exe.exec(0, [1, 2, 10, 11]);
+            assert_eq!(new, [1, 2, 5, 11]);
         }
     }
 }
