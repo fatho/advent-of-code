@@ -46,6 +46,10 @@ pub fn find_input<I: Iterator<Item = i64> + Clone>(validator: &[Inst], set: I) -
     ranges.last_mut().unwrap()[Var::Z.index()] = RangeVal::exact(0);
     restrict_ranges(validator, &mut ranges);
 
+    // JIT-compile
+    let prog = compiler::compile(validator);
+    println!("{:x?}", prog);
+
     // Perform the actual search
 
     let num_inputs = validator
@@ -580,123 +584,151 @@ impl Var {
 mod compiler {
     use std::arch::asm;
 
+    use iced_x86::{Code, Instruction, Register};
+
     use super::{Inst, Operand, Var};
 
-    // W: RDI
-    // X: RSI
-    // Y: RDX
-    // Z: RCX
-    //
-    // Input: R8, R9,
-
-    struct Assembler {
-        code: Vec<u8>,
+    macro_rules! emit {
+        ($rip:path, $asm:path, $code:expr) => {
+            $rip += $asm.encode(&Instruction::with($code), $rip).unwrap() as u64
+        };
+        ($rip:path, $asm:path, $code:expr, $op0:expr) => {
+            $rip += $asm
+                .encode(&Instruction::with1($code, $op0).unwrap(), $rip)
+                .unwrap() as u64
+        };
+        ($rip:path, $asm:path, $code:expr, $op0:expr, $op1:expr) => {
+            $rip += $asm
+                .encode(&Instruction::with2($code, $op0, $op1).unwrap(), $rip)
+                .unwrap() as u64
+        };
+        ($rip:path, $asm:path, $code:expr, $op0:expr, $op1:expr, $op2:expr) => {
+            $rip += $asm
+                .encode(&Instruction::with3($code, $op0, $op1, $op2).unwrap(), $rip)
+                .unwrap() as u64
+        };
     }
 
-    impl Assembler {
-        fn new() -> Self {
-            Self { code: vec![] }
-        }
+    pub fn compile(prog: &[Inst]) -> Vec<u8> {
+        let mut rip = 0;
+        let mut asm = iced_x86::Encoder::new(64);
+        let mut entry_points = Vec::new();
 
-        fn position(&self) -> usize {
-            self.code.len()
-        }
-
-        fn emit_ret(&mut self) {
-            self.code.push(0xc3);
-        }
-
-        fn emit_sete(&mut self, target: u8) {
-            self.code
-                .extend([0x0f, 0x94, 0b1100_0000 | (target & 0b111)]);
-        }
-
-        fn emit_mod_rm<const N: usize>(&mut self, opcode: [u8; N], reg: u8, rm: u8) {
-            // [0100|WRXC]
-            // W: wide
-            // R: extension reg
-            // X: extension SIB index
-            // C: extenion rm
-            let mut rex = 0b0100_1000;
-            if reg >= 8 {
-                rex |= 0b0100;
-            }
-            if rm >= 8 {
-                rex |= 0b0001;
-            }
-            self.code.push(rex);
-            self.code.extend(opcode);
-            // 11 means register direct addressing
-            // next 3 bits are reg, last 3 bits rm
-            let mod_rm = 0b11000000 | (reg & 0b111) << 3 | (rm & 0b111);
-            self.code.push(mod_rm);
-        }
-    }
-
-    fn compile(prog: &[Inst]) -> Vec<u8> {
-        let mut offsets = vec![0];
-        let mut asm = Assembler::new();
-        let mut first_input = true;
-
+        // TODO: optimize smaller immediate operands
         for inst in prog {
             match inst {
                 Inst::Inp(a) => {
-                    if first_input {
-                        first_input = false;
-                    } else {
-                        offsets.push(asm.position());
-                        asm.emit_ret();
-                    }
-                    asm.emit_mod_rm([0x89], 12, var_reg(*a));
-                }
-                Inst::Add(a, Operand::Var(b)) => {
-                    asm.emit_mod_rm([0x01], var_reg(*b), var_reg(*a));
-                }
-                Inst::Mul(a, Operand::Var(b)) => {
-                    asm.emit_mod_rm([0x0F, 0xAF], var_reg(*b), var_reg(*a));
-                }
-                Inst::Div(a, Operand::Var(b)) => {
-                    // clear RDX
-                    asm.emit_mod_rm([0x31], 2, 2);
-                    // store dividend in RAX
-                    asm.emit_mod_rm([0x89], var_reg(*a), 0);
-                    // divide by var
-                    asm.emit_mod_rm([0xF7], 0b111, var_reg(*b));
-                    // copy result (RAX) into var
-                    asm.emit_mod_rm([0x89], 0, var_reg(*a));
-                }
-                Inst::Mod(a, Operand::Var(b)) => {
-                    // clear RDX
-                    asm.emit_mod_rm([0x31], 2, 2);
-                    // store dividend in RAX
-                    asm.emit_mod_rm([0x89], var_reg(*a), 0);
-                    // divide by var
-                    asm.emit_mod_rm([0xF7], 0b111, var_reg(*b));
-                    // copy remainder (RDX) into var
-                    asm.emit_mod_rm([0x89], 2, var_reg(*a));
-                }
-                Inst::Eql(a, Operand::Var(b)) => {
-                    // clear RAX
-                    asm.emit_mod_rm([0x31], 0, 0);
-                    // compare
-                    asm.emit_mod_rm([0x39], var_reg(*a), var_reg(*b));
-                    // store result in RAX
-                    asm.emit_sete(0);
-                    // copy RAX to var
-                    asm.emit_mod_rm([0x89], 0, var_reg(*a));
+                    // emit return
+                    emit!(rip, asm, Code::Retnq);
+                    // and record new entry point
+                    entry_points.push((*a, rip));
                 }
 
-                Inst::Add(a, Operand::Val(b)) => todo!(),
-                Inst::Mul(a, Operand::Val(b)) => todo!(),
-                Inst::Div(a, Operand::Val(b)) => todo!(),
-                Inst::Mod(a, Operand::Val(b)) => todo!(),
-                Inst::Eql(a, Operand::Val(b)) => todo!(),
+                Inst::Add(a, Operand::Var(b)) => {
+                    emit!(rip, asm, Code::Add_r64_rm64, var_reg(*a), var_reg(*b));
+                }
+                Inst::Add(a, Operand::Val(b)) => {
+                    if *b >= i8::MIN as i64 && *b <= i8::MAX as i64 {
+                        emit!(rip, asm, Code::Add_rm64_imm8, var_reg(*a), *b);
+                    } else if *b >= i32::MIN as i64 && *b <= i32::MAX as i64 {
+                        emit!(rip, asm, Code::Add_rm64_imm32, var_reg(*a), *b);
+                    } else {
+                        emit!(rip, asm, Code::Mov_r64_imm64, Register::R12, *b);
+                        emit!(rip, asm, Code::Add_r64_rm64, var_reg(*a), Register::R12);
+                    }
+                }
+
+                Inst::Mul(a, Operand::Var(b)) => {
+                    emit!(rip, asm, Code::Imul_r64_rm64, var_reg(*a), var_reg(*b));
+                }
+                Inst::Mul(a, Operand::Val(b)) => {
+                    if *b >= i8::MIN as i64 && *b <= i8::MAX as i64 {
+                        emit!(
+                            rip,
+                            asm,
+                            Code::Imul_r64_rm64_imm8,
+                            var_reg(*a),
+                            var_reg(*a),
+                            *b as i32
+                        );
+                    } else if *b >= i32::MIN as i64 && *b <= i32::MAX as i64 {
+                        emit!(
+                            rip,
+                            asm,
+                            Code::Imul_r64_rm64_imm32,
+                            var_reg(*a),
+                            var_reg(*a),
+                            *b as i32
+                        );
+                    } else {
+                        emit!(rip, asm, Code::Mov_r64_imm64, Register::R12, *b);
+                        emit!(rip, asm, Code::Imul_r64_rm64, var_reg(*a), Register::R12);
+                    }
+                }
+
+                Inst::Div(a, b) => {
+                    // clear RDX
+                    emit!(rip, asm, Code::Xor_rm64_r64, Register::RDX, Register::RDX);
+                    // store dividend in RAX
+                    emit!(rip, asm, Code::Mov_rm64_r64, Register::RAX, var_reg(*a));
+                    // divide
+                    match b {
+                        Operand::Var(b) => emit!(rip, asm, Code::Idiv_rm64, var_reg(*b)),
+                        Operand::Val(b) => {
+                            emit!(rip, asm, Code::Mov_r64_imm64, Register::R12, *b);
+                            emit!(rip, asm, Code::Idiv_rm64, Register::R12);
+                        }
+                    }
+                    // copy result (RAX) into var
+                    emit!(rip, asm, Code::Mov_rm64_r64, var_reg(*a), Register::RAX);
+                }
+                Inst::Mod(a, b) => {
+                    // clear RDX
+                    emit!(rip, asm, Code::Xor_rm64_r64, Register::RDX, Register::RDX);
+                    // store dividend in RAX
+                    emit!(rip, asm, Code::Mov_rm64_r64, Register::RAX, var_reg(*a));
+                    // divide
+                    match b {
+                        Operand::Var(b) => emit!(rip, asm, Code::Idiv_rm64, var_reg(*b)),
+                        Operand::Val(b) => {
+                            emit!(rip, asm, Code::Mov_r64_imm64, Register::R12, *b);
+                            emit!(rip, asm, Code::Idiv_rm64, Register::R12);
+                        }
+                    }
+                    // copy result (RDX) into var
+                    emit!(rip, asm, Code::Mov_rm64_r64, var_reg(*a), Register::RDX);
+                }
+                Inst::Eql(a, b) => {
+                    // clear RAX
+                    emit!(rip, asm, Code::Xor_rm64_r64, Register::RAX, Register::RAX);
+                    // compare
+                    match b {
+                        Operand::Var(b) => {
+                            emit!(rip, asm, Code::Cmp_rm64_r64, var_reg(*a), var_reg(*b))
+                        }
+                        Operand::Val(b) => {
+                            if *b >= i8::MIN as i64 && *b <= i8::MAX as i64 {
+                                emit!(rip, asm, Code::Cmp_rm64_imm8, var_reg(*a), *b);
+                            } else if *b >= i32::MIN as i64 && *b <= i32::MAX as i64 {
+                                emit!(rip, asm, Code::Cmp_rm64_imm32, var_reg(*a), *b);
+                            } else {
+                                emit!(rip, asm, Code::Mov_r64_imm64, Register::R12, *b);
+                                emit!(rip, asm, Code::Cmp_rm64_r64, var_reg(*a), Register::R12);
+                            }
+                        }
+                    }
+                    // store result in RAX
+                    emit!(rip, asm, Code::Sete_rm8, Register::AL);
+                    // copy RAX to var
+                    emit!(rip, asm, Code::Mov_rm64_r64, var_reg(*a), Register::RAX);
+                }
             }
         }
 
-        asm.emit_ret();
+        // emit final return
+        emit!(rip, asm, Code::Retnq);
 
-        asm.code
+        asm.take_buffer()
     }
 
     struct Exe {
@@ -731,11 +763,14 @@ mod compiler {
             let target = self.base as usize + offset;
             asm!(
                 "call rax",
-                in("rax") target,
+                inout("rax") target => _,
                 inout("r8") state[0],
                 inout("r9") state[1],
                 inout("r10") state[2],
                 inout("r11") state[3],
+                // additional clobbers
+                out("rdx") _,
+                out("r12") _,
             );
             state
         }
@@ -749,18 +784,19 @@ mod compiler {
         }
     }
 
-    fn var_reg(var: Var) -> u8 {
+    fn var_reg(var: Var) -> Register {
         match var {
-            Var::W => 8,  // R8
-            Var::X => 9,  // R9
-            Var::Y => 10, // R10
-            Var::Z => 11, // R11
+            Var::W => Register::R8,  // R8
+            Var::X => Register::R9,  // R9
+            Var::Y => Register::R10, // R10
+            Var::Z => Register::R11, // R11
         }
     }
 
     #[test]
     fn test_compile() {
         let code = compile(&[Inst::Div(Var::Y, Operand::Var(Var::X))]);
+        println!("{:x?}", code);
         assert_eq!(
             code,
             vec![0x48, 0x31, 0xD2, 0x4C, 0x89, 0xD0, 0x49, 0xF7, 0xF9, 0x49, 0x89, 0xC2, 0xC3]
