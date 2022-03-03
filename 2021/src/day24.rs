@@ -48,7 +48,7 @@ pub fn find_input<I: Iterator<Item = i64> + Clone>(validator: &[Inst], set: I) -
 
     // JIT-compile
     let prog = compiler::compile(validator);
-    println!("{:x?}", prog);
+    //println!("{:x?}", prog);
 
     // Perform the actual search
 
@@ -59,17 +59,18 @@ pub fn find_input<I: Iterator<Item = i64> + Clone>(validator: &[Inst], set: I) -
     let mut choices = Vec::new();
     let mut input = Vec::new();
     let mut states = Vec::new();
-    let mut cur_state = State::new();
+    let mut cur_state = State::from_compiled(&prog);
 
     choices.push(set.clone());
 
     'outer: while let Some(choice) = choices.last_mut() {
         if let Some(cur) = choice.next() {
             states.push(cur_state.clone());
-            cur_state.step_input(validator, cur);
+            cur_state.step_compiled(&prog, cur);
 
+            let orig_ip = prog.original_ip(cur_state.ip);
             for v in 0..4 {
-                if !ranges[cur_state.ip][v].contains(cur_state.state[v]) {
+                if !ranges[orig_ip][v].contains(cur_state.state[v]) {
                     cur_state = states.pop().unwrap();
                     continue 'outer;
                 }
@@ -461,6 +462,19 @@ impl State {
         }
     }
 
+    fn from_compiled(exe: &compiler::Compiled) -> Self {
+        Self {
+            state: exe.init(),
+            ip: 0,
+        }
+    }
+
+    #[inline(always)]
+    fn step_compiled(&mut self, exe: &compiler::Compiled, input: i64) {
+        self.state = exe.step(self.ip, self.state, input);
+        self.ip += 1;
+    }
+
     #[inline(always)]
     fn var(&self, var: Var) -> i64 {
         self.state[var.index()]
@@ -609,19 +623,46 @@ mod compiler {
         };
     }
 
-    pub fn compile(prog: &[Inst]) -> Vec<u8> {
+    pub struct Compiled {
+        code_mem: ExecutableMem,
+        entry_points: Vec<(Var, usize)>,
+        original_ip: Vec<usize>,
+    }
+
+    impl Compiled {
+        #[inline(always)]
+        pub fn init(&self) -> [i64; 4] {
+            unsafe { self.code_mem.exec(0, [0; 4]) }
+        }
+
+        #[inline(always)]
+        pub fn step(&self, index: usize, mut state: [i64; 4], input: i64) -> [i64; 4] {
+            let (var, offset) = self.entry_points[index];
+            state[var.index()] = input;
+            unsafe { self.code_mem.exec(offset, state) }
+        }
+
+        #[inline(always)]
+        pub fn original_ip(&self, index: usize) -> usize {
+            self.original_ip[index]
+        }
+    }
+
+    pub fn compile(prog: &[Inst]) -> Compiled {
         let mut rip = 0;
         let mut asm = iced_x86::Encoder::new(64);
         let mut entry_points = Vec::new();
+        let mut original_ip = Vec::new();
 
         // TODO: optimize smaller immediate operands
-        for inst in prog {
+        for (inst_index, inst) in prog.iter().enumerate() {
             match inst {
                 Inst::Inp(a) => {
                     // emit return
                     emit!(rip, asm, Code::Retnq);
                     // and record new entry point
-                    entry_points.push((*a, rip));
+                    entry_points.push((*a, rip as usize));
+                    original_ip.push(inst_index);
                 }
 
                 Inst::Add(a, Operand::Var(b)) => {
@@ -728,15 +769,25 @@ mod compiler {
         // emit final return
         emit!(rip, asm, Code::Retnq);
 
-        asm.take_buffer()
+        original_ip.push(prog.len());
+
+        let _ = rip; // pretend it's read
+
+        let code = asm.take_buffer();
+        let code_mem = ExecutableMem::new(&code).unwrap(); // TODO: better error handling
+        Compiled {
+            code_mem,
+            entry_points,
+            original_ip,
+        }
     }
 
-    struct Exe {
+    struct ExecutableMem {
         base: *mut libc::c_void,
         len: usize,
     }
 
-    impl Exe {
+    impl ExecutableMem {
         pub fn new(code: &[u8]) -> Option<Self> {
             let len = (code.len() + 0xfff) / 0x1000 * 0x1000;
             unsafe {
@@ -755,10 +806,11 @@ mod compiler {
                 libc::memset(base, 0x90, len);
                 // copy code to start
                 libc::memcpy(base, code.as_ptr() as *const libc::c_void, code.len());
-                Some(Exe { base, len })
+                Some(ExecutableMem { base, len })
             }
         }
 
+        #[inline(always)]
         pub unsafe fn exec(&self, offset: usize, mut state: [i64; 4]) -> [i64; 4] {
             let target = self.base as usize + offset;
             asm!(
@@ -776,7 +828,7 @@ mod compiler {
         }
     }
 
-    impl Drop for Exe {
+    impl Drop for ExecutableMem {
         fn drop(&mut self) {
             unsafe {
                 libc::munmap(self.base, self.len);
@@ -793,20 +845,20 @@ mod compiler {
         }
     }
 
-    #[test]
-    fn test_compile() {
-        let code = compile(&[Inst::Div(Var::Y, Operand::Var(Var::X))]);
-        println!("{:x?}", code);
-        assert_eq!(
-            code,
-            vec![0x48, 0x31, 0xD2, 0x4C, 0x89, 0xD0, 0x49, 0xF7, 0xF9, 0x49, 0x89, 0xC2, 0xC3]
-        );
-        unsafe {
-            let exe = Exe::new(&code).unwrap();
-            let new = exe.exec(0, [1, 2, 10, 11]);
-            assert_eq!(new, [1, 2, 5, 11]);
-        }
-    }
+    // #[test]
+    // fn test_compile() {
+    //     let exe = compile(&[Inst::Div(Var::Y, Operand::Var(Var::X))]);
+    //     println!("{:x?}", code);
+    //     assert_eq!(
+    //         code,
+    //         vec![0x48, 0x31, 0xD2, 0x4C, 0x89, 0xD0, 0x49, 0xF7, 0xF9, 0x49, 0x89, 0xC2, 0xC3]
+    //     );
+    //     unsafe {
+    //         let exe = ExecutableMem::new(&code).unwrap();
+    //         let new = exe.exec(0, [1, 2, 10, 11]);
+    //         assert_eq!(new, [1, 2, 5, 11]);
+    //     }
+    // }
 }
 
 #[cfg(test)]
