@@ -1,4 +1,5 @@
 */target
+*/.direnv
 
 # Perf
 perf.data
