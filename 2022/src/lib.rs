@@ -139,6 +139,33 @@ macro_rules! include_input {
 }
 
 #[macro_export]
+macro_rules! include_input_env {
+    ($day:expr) => {{
+        match std::env::var_os("AOC_INPUT_DIR") {
+            None => $crate::include_input!($day).as_slice().to_owned(),
+            Some(path) => {
+                let mut source = std::path::PathBuf::from(path);
+                source.push($day);
+                source.push("input.txt");
+                std::fs::read(&source).unwrap()
+            }
+        }
+    }};
+}
+
+// fn foo() {
+//     match std::env::var_os("AOC_INPUT_DIR") {
+//         None => include_input!("...").to_owned(),
+//         Some(path) => {
+//             let source = std::path::PathBuf::from(path);
+//             source.push("...");
+//             source.push("input.txt");
+//             std::fs::read(source.as_ref()).unwrap()
+//         }
+//     }
+// }
+
+#[macro_export]
 macro_rules! test_day {
     ($day:expr, $name:expr, $part1:expr, $part2:expr) => {
         #[cfg(test)]
