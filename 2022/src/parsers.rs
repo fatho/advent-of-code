@@ -43,7 +43,7 @@ pub fn parse<'a, O>(
         Ok(output)
     } else {
         Err(anyhow::anyhow!(
-            "parser did not consume whole input, remaining:\n{}",
+            "parser did not consume whole input, remaining:\n{:?}",
             String::from_utf8_lossy(rest)
         ))
     }
