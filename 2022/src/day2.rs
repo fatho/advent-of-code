@@ -20,10 +20,7 @@ pub static RUN: Day = Day { part1, part2 };
 pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     let total_score = parsers::parse(
         fold_many0(
-            terminated(
-                separated_pair(parse_col1, tag(" "), parse_col2_part1),
-                newline,
-            ),
+            terminated(separated_pair(parse_sign, tag(" "), parse_sign), newline),
             || 0,
             |acc, (opponent, me)| acc + Round { opponent, me }.score(),
         ),
@@ -35,10 +32,7 @@ pub fn part1(input: &[u8]) -> anyhow::Result<String> {
 pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     let total_score = parsers::parse(
         fold_many0(
-            terminated(
-                separated_pair(parse_col1, tag(" "), parse_col2_part2),
-                newline,
-            ),
+            terminated(separated_pair(parse_sign, tag(" "), parse_outcome), newline),
             || 0,
             |acc, (opponent, outcome)| {
                 acc + Round {
@@ -155,21 +149,17 @@ impl Round {
         } else if self.opponent.defeats(self.me) {
             Outcome::Loss
         } else {
-            assert!(self.me.defeats(self.opponent));
+            debug_assert!(self.me.defeats(self.opponent));
             Outcome::Win
         }
     }
 }
 
-fn parse_col1(input: &[u8]) -> nom::IResult<&[u8], Sign> {
+fn parse_sign(input: &[u8]) -> nom::IResult<&[u8], Sign> {
     map_res(asciichar, Sign::try_from)(input)
 }
 
-fn parse_col2_part1(input: &[u8]) -> nom::IResult<&[u8], Sign> {
-    map_res(asciichar, Sign::try_from)(input)
-}
-
-fn parse_col2_part2(input: &[u8]) -> nom::IResult<&[u8], Outcome> {
+fn parse_outcome(input: &[u8]) -> nom::IResult<&[u8], Outcome> {
     map_res(asciichar, Outcome::try_from)(input)
 }
 
