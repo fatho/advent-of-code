@@ -5,12 +5,15 @@ use nom::{
     branch::alt,
     bytes::complete::tag,
     character::complete::newline,
-    combinator::map,
+    combinator::{map, map_res},
     multi::fold_many0,
     sequence::{separated_pair, terminated},
 };
 
-use crate::{parsers, Day};
+use crate::{
+    parsers::{self, asciichar},
+    Day,
+};
 
 pub static RUN: Day = Day { part1, part2 };
 
@@ -92,6 +95,19 @@ impl Sign {
     }
 }
 
+impl TryFrom<char> for Sign {
+    type Error = ();
+
+    fn try_from(value: char) -> Result<Self, Self::Error> {
+        match value {
+            'A' | 'X' => Ok(Sign::Rock),
+            'B' | 'Y' => Ok(Sign::Paper),
+            'C' | 'Z' => Ok(Sign::Scissors),
+            _ => Err(()),
+        }
+    }
+}
+
 #[derive(Copy, Clone, PartialEq, Eq)]
 struct Round {
     opponent: Sign,
@@ -115,6 +131,19 @@ impl Outcome {
     }
 }
 
+impl TryFrom<char> for Outcome {
+    type Error = ();
+
+    fn try_from(value: char) -> Result<Self, Self::Error> {
+        match value {
+            'X' => Ok(Outcome::Loss),
+            'Y' => Ok(Outcome::Draw),
+            'Z' => Ok(Outcome::Win),
+            _ => Err(()),
+        }
+    }
+}
+
 impl Round {
     fn score(&self) -> u32 {
         self.me.score() + self.outcome().score()
@@ -133,27 +162,15 @@ impl Round {
 }
 
 fn parse_col1(input: &[u8]) -> nom::IResult<&[u8], Sign> {
-    alt((
-        map(tag("A"), |_| Sign::Rock),
-        map(tag("B"), |_| Sign::Paper),
-        map(tag("C"), |_| Sign::Scissors),
-    ))(input)
+    map_res(asciichar, Sign::try_from)(input)
 }
 
 fn parse_col2_part1(input: &[u8]) -> nom::IResult<&[u8], Sign> {
-    alt((
-        map(tag("X"), |_| Sign::Rock),
-        map(tag("Y"), |_| Sign::Paper),
-        map(tag("Z"), |_| Sign::Scissors),
-    ))(input)
+    map_res(asciichar, Sign::try_from)(input)
 }
 
 fn parse_col2_part2(input: &[u8]) -> nom::IResult<&[u8], Outcome> {
-    alt((
-        map(tag("X"), |_| Outcome::Loss),
-        map(tag("Y"), |_| Outcome::Draw),
-        map(tag("Z"), |_| Outcome::Win),
-    ))(input)
+    map_res(asciichar, Outcome::try_from)(input)
 }
 
 crate::test_day!(RUN, "day2", "11666", "12767");

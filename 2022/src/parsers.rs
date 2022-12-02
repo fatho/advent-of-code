@@ -1,6 +1,11 @@
 //! Various nom parsers that are often useful
 
-use nom::{bytes::complete::tag, character::complete::digit1, combinator::map, IResult};
+use nom::{
+    bytes::complete::tag,
+    character::complete::digit1,
+    combinator::{fail, map},
+    IResult,
+};
 
 macro_rules! parse_int {
     ($name:ident) => {
@@ -49,6 +54,20 @@ pub fn parse<'a, O>(
     }
 }
 
+pub fn asciichar(input: &[u8]) -> IResult<&[u8], char> {
+    match input {
+        [x, rest @ ..] if *x < 128 => Ok((rest, *x as char)),
+        _ => fail(input),
+    }
+}
+
 pub fn newline(input: &[u8]) -> IResult<&[u8], ()> {
     map(tag(b"\n"), |_| ())(input)
+}
+
+#[test]
+fn test_asciichar() {
+    assert_eq!(asciichar(b"Foo"), Ok((b"oo".as_slice(), 'F')));
+    assert!(asciichar(b"\xC4oo").is_err());
+    assert!(asciichar(b"").is_err());
 }
