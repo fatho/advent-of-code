@@ -14,4 +14,4 @@ pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     bail!("not implemented")
 }
 
-crate::test_day!(RUN, "day10", "<solution part1>", "<solution part2>");
+// crate::test_day!(RUN, "day10", "<solution part1>", "<solution part2>");
