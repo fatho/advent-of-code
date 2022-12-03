@@ -9,9 +9,8 @@ use crate::Day;
 pub static RUN: Day = Day { part1, part2 };
 
 pub fn part1(input: &[u8]) -> anyhow::Result<String> {
-    let mut buf = input.to_owned();
     let mut sum = 0u32;
-    for (index, line) in buf.split_mut(|ch| *ch == b'\n').enumerate() {
+    for (index, line) in input.split(|ch| *ch == b'\n').enumerate() {
         if line.len() & 1 == 1 {
             bail!("Rucksack with odd number of items on line {}", index + 1);
         } else if line.is_empty() {
@@ -34,10 +33,9 @@ pub fn part1(input: &[u8]) -> anyhow::Result<String> {
 }
 
 pub fn part2(input: &[u8]) -> anyhow::Result<String> {
-    let mut buf = input.to_owned();
     let mut sum = 0u32;
 
-    let mut lines = buf.split_mut(|ch| *ch == b'\n').enumerate();
+    let mut lines = input.split(|ch| *ch == b'\n').enumerate();
     while let Some((index, a)) = lines.next() {
         if a.is_empty() {
             break;
