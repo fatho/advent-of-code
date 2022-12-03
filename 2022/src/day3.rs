@@ -19,12 +19,11 @@ pub fn part1(input: &[u8]) -> anyhow::Result<String> {
         }
 
         let mid = line.len() / 2;
-        line[0..mid].sort();
 
         if let Some(misplaced) = line[mid..]
             .iter()
             .copied()
-            .find(|item| line[0..mid].binary_search(item).is_ok())
+            .find(|item| line[0..mid].contains(item))
         {
             sum += priority(misplaced) as u32;
         } else {
@@ -51,13 +50,10 @@ pub fn part2(input: &[u8]) -> anyhow::Result<String> {
             .next()
             .ok_or_else(|| anyhow!("Incomplete group at line {}", index + 3))?;
 
-        a.sort();
-        b.sort();
-
         if let Some(badge) = c
             .iter()
             .copied()
-            .find(|item| a.binary_search(item).is_ok() && b.binary_search(item).is_ok())
+            .find(|item| a.contains(item) && b.contains(item))
         {
             sum += priority(badge) as u32;
         } else {

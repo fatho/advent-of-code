@@ -12,15 +12,15 @@ in
       # Rust core
       channel.rust
       # Neat helper tools
-      cargo-asm
       cargo-audit
       cargo-edit
       cargo-flamegraph
+      cargo-show-asm
 
       # Nix tools
       niv
     ];
-    
+
     # Always enable rust backtraces in development shell
     RUST_BACKTRACE = "1";
 
