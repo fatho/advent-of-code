@@ -21,7 +21,6 @@ pub static RUN: Day = Day { part1, part2 };
 pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     let mut buf = input.to_owned();
     let mut sum = 0u32;
-    // Sort ranges
     for (index, line) in buf.split_mut(|ch| *ch == b'\n').enumerate() {
         if line.len() & 1 == 1 {
             bail!("Rucksack with odd number of items on line {}", index + 1);
@@ -31,9 +30,12 @@ pub fn part1(input: &[u8]) -> anyhow::Result<String> {
 
         let mid = line.len() / 2;
         line[0..mid].sort();
-        line[mid..].sort();
 
-        if let Some(misplaced) = common_items(&line[0..mid], &line[mid..]).copied().next() {
+        if let Some(misplaced) = line[mid..]
+            .iter()
+            .copied()
+            .find(|item| line[0..mid].binary_search(item).is_ok())
+        {
             sum += priority(misplaced) as u32;
         } else {
             bail!("No misplaced item on line {}", index + 1);
