@@ -53,11 +53,7 @@ fn parse_ranges_count_if(
 
 fn parse_range(input: &[u8]) -> IResult<&[u8], RangeInclusive<u32>> {
     map(
-        separated_pair(
-            nom::character::complete::u32,
-            tag("-"),
-            nom::character::complete::u32,
-        ),
+        separated_pair(parsers::u32, tag("-"), parsers::u32),
         |(from, to)| from..=to,
     )(input)
 }
