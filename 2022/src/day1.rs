@@ -1,16 +1,16 @@
-use nom::{
-    branch::alt, bytes::complete::tag, character::complete::char, combinator::eof,
-    multi::fold_many1, sequence::terminated,
-};
+use nom::{character::complete::char, multi::fold_many1, sequence::terminated};
 
-use crate::{parsers, Day};
+use crate::{
+    parsers::{self, newline_or_eof},
+    Day,
+};
 
 pub static RUN: Day = Day { part1, part2 };
 
 pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     let max = parsers::parse(
         fold_many1(
-            terminated(parse_inventory, alt((tag("\n"), eof))),
+            terminated(parse_inventory, newline_or_eof),
             || 0,
             |prev_max, cur| prev_max.max(cur),
         ),
@@ -22,7 +22,7 @@ pub fn part1(input: &[u8]) -> anyhow::Result<String> {
 pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     let top3 = parsers::parse(
         fold_many1(
-            terminated(parse_inventory, alt((tag("\n"), eof))),
+            terminated(parse_inventory, newline_or_eof),
             || [0; 3],
             |mut top3, cur| {
                 let (min_pos, _) = top3.iter().enumerate().min_by_key(|(_, val)| *val).unwrap();

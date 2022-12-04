@@ -81,6 +81,14 @@ pub fn newline(input: &[u8]) -> IResult<&[u8], ()> {
     map(tag(b"\n"), |_| ())(input)
 }
 
+pub fn newline_or_eof(input: &[u8]) -> IResult<&[u8], ()> {
+    match input {
+        [b'\n', rest @ ..] => Ok((rest, ())),
+        [] => Ok((b"", ())),
+        _ => fail(input),
+    }
+}
+
 #[test]
 fn test_asciichar() {
     assert_eq!(asciichar(b"Foo"), Ok((b"oo".as_slice(), 'F')));
