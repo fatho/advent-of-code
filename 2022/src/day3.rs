@@ -1,63 +1,43 @@
-#![allow(unused)]
+use nom::{
+    character::complete::alpha1,
+    combinator::map,
+    multi::fold_many0,
+    sequence::{terminated, tuple},
+    IResult,
+};
 
-use std::collections::HashSet;
-
-use anyhow::{anyhow, bail};
-
-use crate::Day;
+use crate::{
+    parsers::{self, newline},
+    Day,
+};
 
 pub static RUN: Day = Day { part1, part2 };
 
 pub fn part1(input: &[u8]) -> anyhow::Result<String> {
-    let mut sum = 0u32;
-    for (index, line) in input.split(|ch| *ch == b'\n').enumerate() {
-        if line.len() & 1 == 1 {
-            bail!("Rucksack with odd number of items on line {}", index + 1);
-        } else if line.is_empty() {
-            break;
-        }
-
-        let mid = line.len() / 2;
-
-        if let Some(misplaced) = line[mid..]
-            .iter()
-            .copied()
-            .find(|item| line[0..mid].contains(item))
-        {
-            sum += priority(misplaced) as u32;
-        } else {
-            bail!("No misplaced item on line {}", index + 1);
-        }
-    }
+    let sum = parsers::parse(
+        fold_many0(
+            terminated(parse_rucksack_halves, newline),
+            || 0u32,
+            |count, (h1, h2)| count + (h1 & h2).trailing_zeros(),
+        ),
+        input,
+    )?;
     Ok(sum.to_string())
 }
 
 pub fn part2(input: &[u8]) -> anyhow::Result<String> {
-    let mut sum = 0u32;
-
-    let mut lines = input.split(|ch| *ch == b'\n').enumerate();
-    while let Some((index, a)) = lines.next() {
-        if a.is_empty() {
-            break;
-        }
-
-        let (_, b) = lines
-            .next()
-            .ok_or_else(|| anyhow!("Incomplete group at line {}", index + 2))?;
-        let (_, c) = lines
-            .next()
-            .ok_or_else(|| anyhow!("Incomplete group at line {}", index + 3))?;
-
-        if let Some(badge) = c
-            .iter()
-            .copied()
-            .find(|item| a.contains(item) && b.contains(item))
-        {
-            sum += priority(badge) as u32;
-        } else {
-            bail!("No badge in group starting on line {}", index + 1);
-        }
-    }
+    let sum = parsers::parse(
+        fold_many0(
+            tuple((
+                terminated(parse_rucksack, newline),
+                terminated(parse_rucksack, newline),
+                terminated(parse_rucksack, newline),
+            )),
+            || 0u32,
+            |count, (r1, r2, r3)| count + (r1 & r2 & r3).trailing_zeros(),
+        ),
+        input,
+    )?;
     Ok(sum.to_string())
 }
 
@@ -67,6 +47,28 @@ fn priority(item: u8) -> u8 {
         b'A'..=b'Z' => item - b'A' + 27,
         _ => panic!("not a valid item {item}"),
     }
+}
+
+fn parse_rucksack(input: &[u8]) -> IResult<&[u8], u64> {
+    map(alpha1, items_to_bitset)(input)
+}
+
+fn parse_rucksack_halves(input: &[u8]) -> IResult<&[u8], (u64, u64)> {
+    map(alpha1, |items: &[u8]| {
+        let mid = items.len() / 2;
+        let h1 = items_to_bitset(&items[0..mid]);
+        let h2 = items_to_bitset(&items[mid..]);
+        (h1, h2)
+    })(input)
+}
+
+fn items_to_bitset(items: &[u8]) -> u64 {
+    // 52 different item types conveniently fit into a single u64
+    items
+        .iter()
+        .copied()
+        .map(priority)
+        .fold(0, |set, index| set | (1u64 << index))
 }
 
 crate::test_day!(RUN, "day3", "8105", "2363");
