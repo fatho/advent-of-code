@@ -1,6 +1,3 @@
-#![allow(unused)]
-
-use anyhow::bail;
 use nom::{
     branch::alt, bytes::complete::tag, character::complete::char, combinator::eof,
     multi::fold_many1, sequence::terminated,
@@ -28,7 +25,7 @@ pub fn part2(input: &[u8]) -> anyhow::Result<String> {
             terminated(parse_inventory, alt((tag("\n"), eof))),
             || [0; 3],
             |mut top3, cur| {
-                let (min_pos, _) = top3.iter().enumerate().min_by_key(|(i, val)| *val).unwrap();
+                let (min_pos, _) = top3.iter().enumerate().min_by_key(|(_, val)| *val).unwrap();
                 top3[min_pos] = top3[min_pos].max(cur);
                 top3
             },
