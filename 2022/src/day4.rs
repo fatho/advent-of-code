@@ -40,13 +40,7 @@ fn parse_ranges_count_if(
         fold_many0(
             terminated(separated_pair(parse_range, tag(","), parse_range), newline),
             || 0,
-            |count, (r1, r2)| {
-                if cond(&r1, &r2) {
-                    count + 1
-                } else {
-                    count
-                }
-            },
+            |count, (r1, r2)| count + cond(&r1, &r2) as u32,
         )(input)
     }
 }
