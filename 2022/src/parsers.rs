@@ -1,5 +1,7 @@
 //! Various nom parsers that are often useful
 
+use std::ops::RangeInclusive;
+
 use nom::{
     bytes::complete::tag,
     character::complete::digit1,
@@ -57,6 +59,20 @@ pub fn parse<'a, O>(
 pub fn asciichar(input: &[u8]) -> IResult<&[u8], char> {
     match input {
         [x, rest @ ..] if *x < 128 => Ok((rest, *x as char)),
+        _ => fail(input),
+    }
+}
+
+pub fn byte(input: &[u8]) -> IResult<&[u8], u8> {
+    match input {
+        [x, rest @ ..] => Ok((rest, *x)),
+        _ => fail(input),
+    }
+}
+
+pub fn byte_range(valid: RangeInclusive<u8>) -> impl Fn(&[u8]) -> IResult<&[u8], u8> {
+    move |input| match input {
+        [x, rest @ ..] if valid.contains(x) => Ok((rest, *x)),
         _ => fail(input),
     }
 }
