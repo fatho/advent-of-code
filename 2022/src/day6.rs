@@ -3,7 +3,7 @@
 use anyhow::bail;
 use nom::{
     bytes::complete::{take, take_until, take_while},
-    combinator::{flat_map, opt},
+    combinator::{flat_map, map_opt, opt},
     multi::fold_many0,
     sequence::{pair, terminated},
 };
@@ -23,7 +23,16 @@ pub fn part2(input: &[u8]) -> anyhow::Result<String> {
 fn shared<const N: usize>(input: &[u8]) -> anyhow::Result<String> {
     let (init, rest) = parsers::parse(
         terminated(
-            pair(take(N), take_while(|ch| (b'a'..=b'z').contains(&ch))),
+            pair(
+                map_opt(take(N), |bytes: &[u8]| {
+                    if bytes.iter().all(|ch| (b'a'..=b'z').contains(ch)) {
+                        Some(bytes)
+                    } else {
+                        None
+                    }
+                }),
+                take_while(|ch| (b'a'..=b'z').contains(&ch)),
+            ),
             opt(parsers::newline),
         ),
         input,
