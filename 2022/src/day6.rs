@@ -33,30 +33,49 @@ fn shared<const N: usize>(input: &[u8]) -> anyhow::Result<String> {
         .expect("parser should've only succeeded with four elements here");
     let mut pos = 0usize;
 
-    while !all_distinct(buf) && pos < rest.len() {
+    // With usize counts it's slower, and u32 should be enough for everything practical. Still,
+    // better be safe than sorry.
+    assert!(N <= u32::MAX as usize);
+    let mut counts = [0u32; 256]; // histogram of all the characters in the window
+    let mut num_duplicates = 0; // number of characters that occur more than once in the window
+
+    for b in buf.iter() {
+        counts[*b as usize] += 1;
+        // count each character only the first time a duplicate is introduced
+        if counts[*b as usize] == 2 {
+            num_duplicates += 1;
+        }
+    }
+
+    while num_duplicates > 0 && pos < rest.len() {
         buf.rotate_left(1);
-        buf[3] = rest[pos];
+        let new = rest[pos];
+        let old = std::mem::replace(&mut buf[3], new);
+        // If the chracters in the window changed we need to update our state
+        if new != old {
+            counts[new as usize] += 1;
+            // Check if `new` became a duplicate
+            if counts[new as usize] == 2 {
+                num_duplicates += 1;
+            }
+            counts[old as usize] -= 1;
+            // Check if `old` no longer is a duplicate
+            if counts[old as usize] == 1 {
+                num_duplicates -= 1;
+            }
+        }
         pos += 1;
     }
 
     Ok((pos + N).to_string())
 }
 
-fn all_distinct<const N: usize>(mut buf: [u8; N]) -> bool {
-    // For the cases we're working with, a naive O(n^2) solution actually outperforms the O(n
-    // log(n)) sort + subsequent O(n) check.
-    for i in 0..N - 1 {
-        for j in i + 1..N {
-            if buf[i] == buf[j] {
-                return false;
-            }
-        }
-    }
-    true
-}
-
 #[test]
 fn test_examples() {
+    assert_eq!(
+        part1(b"mjqjpqmgbljsphdztnvjfqwrcgsmlb").unwrap(),
+        "7".to_string()
+    );
     assert_eq!(
         part1(b"bvwbjplbgvbhsrlpgdmjqwftvncz").unwrap(),
         "5".to_string()
