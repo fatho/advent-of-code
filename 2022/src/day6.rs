@@ -59,7 +59,7 @@ fn shared<const N: usize>(input: &[u8]) -> anyhow::Result<String> {
     while num_duplicates > 0 && pos < rest.len() {
         buf.rotate_left(1);
         let new = rest[pos];
-        let old = std::mem::replace(&mut buf[3], new);
+        let old = std::mem::replace(&mut buf[N - 1], new);
         // If the chracters in the window changed we need to update our state
         if new != old {
             counts[new as usize] += 1;
