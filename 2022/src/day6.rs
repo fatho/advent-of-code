@@ -38,9 +38,10 @@ fn shared<const N: usize>(input: &[u8]) -> anyhow::Result<String> {
         input,
     )?;
 
-    let mut buf = <&[u8] as TryInto<[u8; N]>>::try_into(init)
+    let mut ring_buf = <&[u8] as TryInto<[u8; N]>>::try_into(init)
         .expect("parser should've only succeeded with N elements here");
-    let mut pos = 0usize;
+    let mut ring_pos = 0usize;
+    let mut rest_pos = 0usize;
 
     // With usize counts it's slower, and u32 should be enough for everything practical. Still,
     // better be safe than sorry.
@@ -48,7 +49,7 @@ fn shared<const N: usize>(input: &[u8]) -> anyhow::Result<String> {
     let mut counts = [0u32; 256]; // histogram of all the characters in the window
     let mut num_duplicates = 0; // number of characters that occur more than once in the window
 
-    for b in buf.iter() {
+    for b in ring_buf.iter() {
         counts[*b as usize] += 1;
         // count each character only the first time a duplicate is introduced
         if counts[*b as usize] == 2 {
@@ -56,10 +57,13 @@ fn shared<const N: usize>(input: &[u8]) -> anyhow::Result<String> {
         }
     }
 
-    while num_duplicates > 0 && pos < rest.len() {
-        buf.rotate_left(1);
-        let new = rest[pos];
-        let old = std::mem::replace(&mut buf[N - 1], new);
+    while num_duplicates > 0 && rest_pos < rest.len() {
+        let new = rest[rest_pos];
+        let old = std::mem::replace(&mut ring_buf[ring_pos], new);
+        ring_pos += 1;
+        if ring_pos == N {
+            ring_pos = 0;
+        }
         // If the chracters in the window changed we need to update our state
         if new != old {
             counts[new as usize] += 1;
@@ -73,10 +77,10 @@ fn shared<const N: usize>(input: &[u8]) -> anyhow::Result<String> {
                 num_duplicates -= 1;
             }
         }
-        pos += 1;
+        rest_pos += 1;
     }
 
-    Ok((pos + N).to_string())
+    Ok((rest_pos + N).to_string())
 }
 
 #[test]
