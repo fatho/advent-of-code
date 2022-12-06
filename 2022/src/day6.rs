@@ -39,7 +39,7 @@ fn shared<const N: usize>(input: &[u8]) -> anyhow::Result<String> {
     )?;
 
     let mut buf = <&[u8] as TryInto<[u8; N]>>::try_into(init)
-        .expect("parser should've only succeeded with four elements here");
+        .expect("parser should've only succeeded with N elements here");
     let mut pos = 0usize;
 
     // With usize counts it's slower, and u32 should be enough for everything practical. Still,
