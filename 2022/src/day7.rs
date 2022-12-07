@@ -161,7 +161,6 @@ impl<'a> Fs<'a> {
             dirs: vec![DirEntry {
                 parent: DirId(0), // make `/` self-referential
                 name: "/",
-                files: vec![],
                 dirs: vec![],
             }],
         }
@@ -171,7 +170,6 @@ impl<'a> Fs<'a> {
 struct DirEntry<'a> {
     parent: DirId,
     name: &'a str,
-    files: Vec<FileId>,
     dirs: Vec<DirId>,
 }
 
@@ -216,7 +214,6 @@ impl<'a, 'b> Walker<'a, 'b> {
         let new_dir = DirEntry {
             name,
             parent: cur,
-            files: vec![],
             dirs: vec![],
         };
         let new_dir_id = DirId(self.fs.dirs.len());
@@ -232,9 +229,7 @@ impl<'a, 'b> Walker<'a, 'b> {
             size,
             parent: cur,
         };
-        let new_file_id = FileId(self.fs.files.len());
         self.fs.files.push(new_file);
-        self.fs.dirs[cur.0].files.push(new_file_id);
     }
 
     fn goto_root(&mut self) {
@@ -257,9 +252,10 @@ impl<'a> Debug for Fs<'a> {
             for dir in entry.dirs.iter().copied() {
                 print_level(fs, dir, indent, f)?;
             }
-            for file in entry.files.iter().copied() {
-                let entry = &fs.files[file.0];
-                writeln!(f, "{}- {} (file, size={})", indent, entry.name, entry.size)?;
+            for file in fs.files.iter() {
+                if file.parent == parent {
+                    writeln!(f, "{}- {} (file, size={})", indent, file.name, file.size)?;
+                }
             }
             indent.truncate(indent_before);
             Ok(())
