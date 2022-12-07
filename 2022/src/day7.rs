@@ -1,4 +1,4 @@
-use std::{fmt::Debug, string::FromUtf8Error};
+use std::{fmt::Debug, str::Utf8Error};
 
 use anyhow::anyhow;
 use nom::{
@@ -73,7 +73,7 @@ fn parse_tree(input: &[u8]) -> IResult<&[u8], Fs> {
         || (),
         |_, cmd_or_ls| match cmd_or_ls {
             CmdOrLs::Cmd(cmd) => match cmd {
-                Command::Cd { name } => match name.as_str() {
+                Command::Cd { name } => match name {
                     ".." => walker.leave(),
                     "/" => walker.goto_root(),
                     other => walker.enter(other),
@@ -94,8 +94,8 @@ fn parse_cmd(input: &[u8]) -> IResult<&[u8], Command> {
         alt((
             map(tag("ls"), |_| Command::Ls),
             map_res(preceded(tag("cd "), take_until("\n")), |name: &[u8]| {
-                Ok::<_, FromUtf8Error>(Command::Cd {
-                    name: String::from_utf8(name.to_owned())?,
+                Ok::<_, Utf8Error>(Command::Cd {
+                    name: std::str::from_utf8(name)?,
                 })
             }),
         )),
@@ -112,9 +112,7 @@ fn parse_ls(input: &[u8]) -> IResult<&[u8], LsRow> {
                     map(parsers::u64, |size| LsType::File { size }),
                 )),
                 tag(" "),
-                map_res(take_until("\n"), |name: &[u8]| {
-                    String::from_utf8(name.to_owned())
-                }),
+                map_res(take_until("\n"), std::str::from_utf8),
             ),
             |(typ, name)| LsRow { typ, name },
         ),
@@ -122,14 +120,14 @@ fn parse_ls(input: &[u8]) -> IResult<&[u8], LsRow> {
     )(input)
 }
 
-enum CmdOrLs {
-    Cmd(Command),
-    Ls(LsRow),
+enum CmdOrLs<'a> {
+    Cmd(Command<'a>),
+    Ls(LsRow<'a>),
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
-enum Command {
-    Cd { name: String },
+enum Command<'a> {
+    Cd { name: &'a str },
     Ls,
 }
 
@@ -140,9 +138,9 @@ enum LsType {
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
-struct LsRow {
+struct LsRow<'a> {
     typ: LsType,
-    name: String,
+    name: &'a str,
 }
 
 #[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
@@ -151,18 +149,18 @@ struct DirId(usize);
 #[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
 struct FileId(usize);
 
-struct Fs {
-    files: Vec<FileEntry>,
-    dirs: Vec<DirEntry>,
+struct Fs<'a> {
+    files: Vec<FileEntry<'a>>,
+    dirs: Vec<DirEntry<'a>>,
 }
 
-impl Fs {
-    pub fn new() -> Fs {
+impl<'a> Fs<'a> {
+    pub fn new() -> Self {
         Fs {
             files: vec![],
             dirs: vec![DirEntry {
                 parent: DirId(0), // make `/` self-referential
-                name: "/".to_owned(),
+                name: "/",
                 files: vec![],
                 dirs: vec![],
             }],
@@ -170,26 +168,26 @@ impl Fs {
     }
 }
 
-struct DirEntry {
+struct DirEntry<'a> {
     parent: DirId,
-    name: String,
+    name: &'a str,
     files: Vec<FileId>,
     dirs: Vec<DirId>,
 }
 
-struct FileEntry {
+struct FileEntry<'a> {
     parent: DirId,
-    name: String,
+    name: &'a str,
     size: u64,
 }
 
-struct Walker<'a> {
+struct Walker<'a, 'b> {
     cur_dir: Vec<DirId>,
-    fs: &'a mut Fs,
+    fs: &'a mut Fs<'b>,
 }
 
-impl<'a> Walker<'a> {
-    fn new(fs: &'a mut Fs) -> Self {
+impl<'a, 'b> Walker<'a, 'b> {
+    fn new(fs: &'a mut Fs<'b>) -> Self {
         Walker {
             cur_dir: vec![DirId(0)],
             fs,
@@ -212,7 +210,7 @@ impl<'a> Walker<'a> {
         self.cur_dir.pop();
     }
 
-    fn insert_dir(&mut self, name: String) {
+    fn insert_dir(&mut self, name: &'b str) {
         let cur = self.cur_dir.last().copied().unwrap();
 
         let new_dir = DirEntry {
@@ -226,7 +224,7 @@ impl<'a> Walker<'a> {
         self.fs.dirs[cur.0].dirs.push(new_dir_id);
     }
 
-    fn insert_file(&mut self, name: String, size: u64) {
+    fn insert_file(&mut self, name: &'b str, size: u64) {
         let cur = self.cur_dir.last().copied().unwrap();
 
         let new_file = FileEntry {
@@ -244,7 +242,7 @@ impl<'a> Walker<'a> {
     }
 }
 
-impl Debug for Fs {
+impl<'a> Debug for Fs<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         fn print_level(
             fs: &Fs,
@@ -270,4 +268,4 @@ impl Debug for Fs {
     }
 }
 
-// crate::test_day!(RUN, "day7", "<solution part1>", "<solution part2>");
+crate::test_day!(RUN, "day7", "1306611", "13210366");
