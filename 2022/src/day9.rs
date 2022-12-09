@@ -37,7 +37,24 @@ pub fn part1(input: &[u8]) -> anyhow::Result<String> {
 }
 
 pub fn part2(input: &[u8]) -> anyhow::Result<String> {
-    bail!("not implemented")
+    let mut rope = LongRope::<10>::new();
+    let mut visited = HashSet::new(); // TODO: hashsets are slow, optimize
+    visited.insert(Pos { x: 0, y: 0 });
+    parsers::parse(
+        fold_many0(
+            terminated(parse_move, parsers::newline),
+            || (),
+            |(), mov| {
+                for _ in 0..mov.steps {
+                    rope.move_head(mov.dir);
+                    visited.insert(rope.knots[9]);
+                }
+            },
+        ),
+        input,
+    )?;
+
+    Ok(visited.len().to_string())
 }
 
 fn parse_move(input: &[u8]) -> IResult<&[u8], Move> {
@@ -134,4 +151,52 @@ impl Rope {
     }
 }
 
-// crate::test_day!(RUN, "day9", "5878", "<solution part2>");
+struct LongRope<const N: usize> {
+    knots: [Pos; N],
+}
+
+impl<const N: usize> LongRope<N> {
+    fn new() -> Self {
+        LongRope {
+            knots: [Pos { x: 0, y: 0 }; N],
+        }
+    }
+
+    fn move_head(&mut self, dir: Dir) {
+        self.knots[0] = self.knots[0].add_dir(dir, 1);
+
+        for i in 0..N - 1 {
+            let dx = self.knots[i].x - self.knots[i + 1].x;
+            let dy = self.knots[i].y - self.knots[i + 1].y;
+
+            if !(-1..=1).contains(&dx) || !(-1..=1).contains(&dy) {
+                // not touching, adjust position
+                self.knots[i + 1] = Pos {
+                    x: self.knots[i + 1].x + dx.signum(),
+                    y: self.knots[i + 1].y + dy.signum(),
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn test_large_example() {
+    assert_eq!(
+        part2(
+            br"R 5
+U 8
+L 8
+D 3
+R 17
+D 10
+L 25
+U 20
+"
+        )
+        .unwrap(),
+        "36".to_string()
+    )
+}
+
+crate::test_day!(RUN, "day9", "5878", "2405");
