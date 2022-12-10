@@ -10,6 +10,7 @@ use nom::{
     sequence::{separated_pair, terminated},
     IResult,
 };
+use rustc_hash::FxHashSet;
 
 use crate::{parsers, Day};
 
@@ -25,7 +26,7 @@ pub fn part2(input: &[u8]) -> anyhow::Result<String> {
 
 fn trace_rope<const N: usize>(input: &[u8]) -> anyhow::Result<String> {
     let mut rope = Rope::<N>::new();
-    let mut visited = HashSet::new(); // TODO: hashsets are slow, optimize
+    let mut visited = FxHashSet::default();
     visited.insert(Pos { x: 0, y: 0 });
     parsers::parse(
         fold_many0(
