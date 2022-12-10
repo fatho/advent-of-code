@@ -16,28 +16,15 @@ use crate::{parsers, Day};
 pub static RUN: Day = Day { part1, part2 };
 
 pub fn part1(input: &[u8]) -> anyhow::Result<String> {
-    let mut rope = Rope::new();
-    let mut visited = HashSet::new(); // TODO: hashsets are slow, optimize
-    visited.insert(Pos { x: 0, y: 0 });
-    parsers::parse(
-        fold_many0(
-            terminated(parse_move, parsers::newline),
-            || (),
-            |(), mov| {
-                for _ in 0..mov.steps {
-                    rope.move_head(mov.dir);
-                    visited.insert(rope.tail);
-                }
-            },
-        ),
-        input,
-    )?;
-
-    Ok(visited.len().to_string())
+    trace_rope::<2>(input)
 }
 
 pub fn part2(input: &[u8]) -> anyhow::Result<String> {
-    let mut rope = LongRope::<10>::new();
+    trace_rope::<10>(input)
+}
+
+fn trace_rope<const N: usize>(input: &[u8]) -> anyhow::Result<String> {
+    let mut rope = Rope::<N>::new();
     let mut visited = HashSet::new(); // TODO: hashsets are slow, optimize
     visited.insert(Pos { x: 0, y: 0 });
     parsers::parse(
@@ -47,7 +34,7 @@ pub fn part2(input: &[u8]) -> anyhow::Result<String> {
             |(), mov| {
                 for _ in 0..mov.steps {
                     rope.move_head(mov.dir);
-                    visited.insert(rope.knots[9]);
+                    visited.insert(rope.tail());
                 }
             },
         ),
@@ -104,12 +91,6 @@ impl Pos {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-struct Rope {
-    head: Pos,
-    tail: Pos,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
 enum Dir {
     Up,
     Down,
@@ -122,42 +103,15 @@ struct Move {
     steps: u32,
 }
 
-impl Rope {
-    fn new() -> Self {
-        Rope {
-            head: Pos { x: 0, y: 0 },
-            tail: Pos { x: 0, y: 0 },
-        }
-    }
-
-    fn touching(&self) -> bool {
-        (-1..=1).contains(&(self.head.x - self.tail.x))
-            && (-1..=1).contains(&(self.head.y - self.tail.y))
-    }
-
-    fn move_head(&mut self, dir: Dir) {
-        // adjust tail after each step
-        self.head = self.head.add_dir(dir, 1);
-
-        if !self.touching() {
-            let dx = self.head.x - self.tail.x;
-            let dy = self.head.y - self.tail.y;
-
-            self.tail = Pos {
-                x: self.tail.x + dx.signum(),
-                y: self.tail.y + dy.signum(),
-            }
-        }
-    }
-}
-
-struct LongRope<const N: usize> {
+struct Rope<const N: usize> {
     knots: [Pos; N],
 }
 
-impl<const N: usize> LongRope<N> {
+impl<const N: usize> Rope<N> {
     fn new() -> Self {
-        LongRope {
+        assert!(N > 0);
+
+        Rope {
             knots: [Pos { x: 0, y: 0 }; N],
         }
     }
@@ -177,6 +131,10 @@ impl<const N: usize> LongRope<N> {
                 }
             }
         }
+    }
+
+    fn tail(&self) -> Pos {
+        self.knots[N - 1]
     }
 }
 
