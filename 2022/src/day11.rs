@@ -40,13 +40,14 @@ fn monkey_business(
 ) -> anyhow::Result<String> {
     let mut items: Vec<_> = monkeys.iter().map(|m| m.starting_items.clone()).collect();
     let mut inspections: Vec<usize> = vec![0; items.len()];
+    let mut inspecting = Vec::new();
 
     for _ in 0..rounds {
         for (index, m) in monkeys.iter().enumerate() {
-            let inspecting = std::mem::take(&mut items[index]);
+            std::mem::swap(&mut items[index], &mut inspecting);
             inspections[index] += inspecting.len();
 
-            for item_worry in inspecting {
+            for item_worry in inspecting.drain(..) {
                 let new_worry = anxiety_meds(m.op.eval(item_worry));
                 let target = m.test.eval(new_worry) as usize;
                 items[target].push(new_worry);
