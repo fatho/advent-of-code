@@ -1,15 +1,12 @@
-#![allow(unused)]
+use std::cmp::Reverse;
 
-use std::{any::Any, cmp::Reverse};
-
-use anyhow::bail;
 use nom::{
     branch::alt,
     bytes::complete::tag,
     character::complete::u64 as parse_u64,
     combinator::map,
     multi::separated_list0,
-    sequence::{delimited, preceded, terminated, tuple},
+    sequence::{delimited, terminated, tuple},
     IResult,
 };
 
@@ -74,7 +71,7 @@ fn parse_monkey(input: &[u8]) -> IResult<&[u8], Monkey> {
             delimited(tag("    If true: throw to monkey "), parse_u64, tag("\n")),
             delimited(tag("    If false: throw to monkey "), parse_u64, tag("\n")),
         )),
-        |(index, items, op, div_by, throw_true, throw_false)| Monkey {
+        |(_index, items, op, div_by, throw_true, throw_false)| Monkey {
             starting_items: items,
             op,
             test: Test {
