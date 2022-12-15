@@ -25,6 +25,8 @@ pub fn part1(input: &[u8]) -> anyhow::Result<String> {
 }
 
 fn count_row(sensors: &[Sensor], row: i32) -> anyhow::Result<usize> {
+    // TODO: use trick from part 2 to speed up the counting
+
     // Find min and max pos to evaluate
     let (min, max) = sensors
         .iter()
@@ -60,11 +62,14 @@ fn find_beacon(mut sensors: Vec<Sensor>, max_coord: i32) -> anyhow::Result<u64> 
     sensors.sort_unstable_by_key(|s| s.position.x);
 
     let mut target = None;
+    let ranges = sensors
+        .iter()
+        .map(|s| s.beacon_distance())
+        .collect::<Vec<_>>();
 
     for y in 0..=max_coord {
         let mut x = 0;
-        for s in sensors.iter() {
-            let range = s.beacon_distance();
+        for (s, range) in sensors.iter().zip(ranges.iter().copied()) {
             let dy = s.position.y.abs_diff(y);
             if dy <= range {
                 let dx = s.position.x.abs_diff(x);
@@ -79,8 +84,6 @@ fn find_beacon(mut sensors: Vec<Sensor>, max_coord: i32) -> anyhow::Result<u64> 
             break;
         }
     }
-
-    println!("{target:?}");
 
     if let Some(target) = target {
         let tuning = target.x as u64 * 4000000 + target.y as u64;
