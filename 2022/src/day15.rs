@@ -20,8 +20,6 @@ pub static RUN: Day = Day { part1, part2 };
 pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     let sensors = parsers::parse(many0(terminated(parse_sensor, newline)), input)?;
 
-    println!("{sensors:?}");
-
     let result = count_row(&sensors, 2000000)?;
     Ok(result.to_string())
 }
@@ -54,7 +52,42 @@ fn count_row(sensors: &[Sensor], row: i32) -> anyhow::Result<usize> {
 }
 
 pub fn part2(input: &[u8]) -> anyhow::Result<String> {
-    bail!("not implemented")
+    let sensors = parsers::parse(many0(terminated(parse_sensor, newline)), input)?;
+    find_beacon(sensors, 4000000).map(|r| r.to_string())
+}
+
+fn find_beacon(mut sensors: Vec<Sensor>, max_coord: i32) -> anyhow::Result<u64> {
+    sensors.sort_unstable_by_key(|s| s.position.x);
+
+    let mut target = None;
+
+    for y in 0..=max_coord {
+        let mut x = 0;
+        for s in sensors.iter() {
+            let range = s.beacon_distance();
+            let dy = s.position.y.abs_diff(y);
+            if dy <= range {
+                let dx = s.position.x.abs_diff(x);
+                let rx = range - dy;
+                if dx <= rx {
+                    x = s.position.x + rx as i32 + 1;
+                }
+            }
+        }
+        if x <= max_coord {
+            target = Some(Pos { x, y });
+            break;
+        }
+    }
+
+    println!("{target:?}");
+
+    if let Some(target) = target {
+        let tuning = target.x as u64 * 4000000 + target.y as u64;
+        Ok(tuning)
+    } else {
+        bail!("beacon not found");
+    }
 }
 
 fn parse_sensor(input: &[u8]) -> IResult<&[u8], Sensor> {
@@ -115,6 +148,10 @@ fn test_example() {
     let result = count_row(&sensors, 10).unwrap();
 
     assert_eq!(result, 26);
+
+    let result2 = find_beacon(sensors, 20).unwrap();
+
+    assert_eq!(result2, 56000011)
 }
 
 // crate::test_day!(RUN, "day15", "5607466", "<solution part2>");
