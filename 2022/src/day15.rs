@@ -1,6 +1,6 @@
-#![allow(unused)]
+use std::collections::HashSet;
 
-use anyhow::{bail, Context};
+use anyhow::bail;
 use nom::{
     bytes::complete::tag,
     character::complete::i32 as parse_i32,
@@ -25,32 +25,37 @@ pub fn part1(input: &[u8]) -> anyhow::Result<String> {
 }
 
 fn count_row(sensors: &[Sensor], row: i32) -> anyhow::Result<usize> {
-    // TODO: use trick from part 2 to speed up the counting
+    let mut blocked = Vec::new();
+    let mut beacon_xs = HashSet::new();
 
-    // Find min and max pos to evaluate
-    let (min, max) = sensors
-        .iter()
-        .filter_map(|s| {
-            let range = s.beacon_distance();
-            let dy = row.abs_diff(s.position.y);
-            if dy > range {
-                None
-            } else {
-                let dx = range - dy;
-                Some((s.position.x - dx as i32, s.position.x + dx as i32))
+    for s in sensors.iter() {
+        let range = s.beacon_distance();
+        let dy = s.position.y.abs_diff(row);
+        if dy <= range {
+            let rx = range - dy;
+            if s.beacon.y == row {
+                beacon_xs.insert(s.beacon.x);
             }
-        })
-        .reduce(|a, b| (a.0.min(b.0), a.1.max(b.1)))
-        .context("no sensors in range for this row")?;
+            blocked.push((s.position.x - rx as i32, s.position.x + rx as i32 + 1));
+        }
+    }
 
-    let count = (min..=max)
-        .filter(|x| {
-            sensors
-                .iter()
-                .any(|s| !s.maybe_beacon(Pos { x: *x, y: row }))
-        })
-        .count();
-    Ok(count)
+    blocked.sort_unstable_by_key(|(from, _)| *from);
+
+    // coalesce overlapping intervals
+    let mut count = 0;
+    let mut current = blocked[0];
+    for next in &blocked[1..] {
+        if next.0 > current.1 {
+            count += (current.1 - current.0) as usize;
+            current = *next;
+        } else {
+            current.1 = current.1.max(next.1);
+        }
+    }
+    count += (current.1 - current.0) as usize;
+
+    Ok(count - beacon_xs.len())
 }
 
 pub fn part2(input: &[u8]) -> anyhow::Result<String> {
@@ -137,10 +142,6 @@ impl Sensor {
     fn beacon_distance(&self) -> u32 {
         self.beacon.manhattan(self.position)
     }
-
-    fn maybe_beacon(&self, pos: Pos) -> bool {
-        pos == self.beacon || pos.manhattan(self.position) > self.beacon_distance()
-    }
 }
 
 #[test]
@@ -157,4 +158,4 @@ fn test_example() {
     assert_eq!(result2, 56000011)
 }
 
-// crate::test_day!(RUN, "day15", "5607466", "<solution part2>");
+crate::test_day!(RUN, "day15", "5607466", "12543202766584");
