@@ -98,19 +98,24 @@ fn simple_dp(valves: &[Valve], start: usize, max_time: usize) -> (ndarray::Array
             }
 
             let bit = 1 << pos;
-            for valve_set in 0..(1 << functioning_valves) {
+
+            let mut dp_for_pos = dp.index_axis_mut(ndarray::Axis(0), pos);
+            let prev_for_pos = prev.index_axis(ndarray::Axis(0), pos);
+
+            for (valve_set, dp_value) in dp_for_pos.indexed_iter_mut() {
                 // opening valve: position remains the same, set of valves shrinks
                 let by_opening = if valve_set & bit != 0 {
-                    prev[(pos, valve_set & !bit)] + valves[pos].flow * remaining_time as u32
+                    prev_for_pos[valve_set & !bit] + valves[pos].flow * remaining_time as u32
                 } else {
                     0
                 };
 
                 // moving: sets of valves remains, position changes
-                dp[(pos, valve_set)] = valves[pos]
+                let prev_for_set = prev.index_axis(ndarray::Axis(1), valve_set);
+                *dp_value = valves[pos]
                     .neighbors
                     .iter()
-                    .map(|idx| prev[(*idx, valve_set)])
+                    .map(|idx| prev_for_set[*idx])
                     .fold(by_opening, Ord::max);
             }
         }
