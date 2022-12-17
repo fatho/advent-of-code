@@ -36,7 +36,7 @@ pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     let (valves, start) = compile_network(input)?;
 
     let (start_dp, functioning) = search_dp(&valves, start, 26);
-    let (start_dp, functioning) = search_dp_stack_all(&valves, start, 26);
+    // let (start_dp, functioning) = search_dp_stack_all(&valves, start, 26);
 
     // Split is symmetric, so we can skip half of them
     let mut best = 0;
@@ -149,87 +149,6 @@ fn search_dp(valves: &[Valve], start: usize, max_time: usize) -> (Vec<u32>, usiz
         })
         .collect();
     (start_dp, functioning_valves)
-}
-
-fn search_dp_stack_all(valves: &[Valve], start: usize, max_time: usize) -> (Vec<u32>, usize) {
-    let dist = floyd_warshall(valves);
-    let functioning_valves = valves.iter().take_while(|v| v.flow > 0).count();
-
-    let mut dp = ndarray::Array3::<Option<u32>>::from_elem(
-        (max_time + 1, 1 << functioning_valves, functioning_valves),
-        None,
-    );
-
-    let start_dp: Vec<_> = (0..(1 << functioning_valves))
-        .map(|all_valves| {
-            (0..functioning_valves)
-                .filter_map(|first| {
-                    let bit = 1 << first;
-                    let steps = dist[(start, first)];
-                    if all_valves & bit != 0 && steps + 1 < max_time as u32 {
-                        Some(dp_func(
-                            &mut dp,
-                            &valves[0..functioning_valves],
-                            &dist,
-                            max_time - steps as usize - 1,
-                            all_valves & !bit,
-                            first,
-                        ))
-                    } else {
-                        None
-                    }
-                })
-                .fold(0, Ord::max)
-        })
-        .collect();
-
-    dbg!(dp.len());
-    dbg!(dp.iter().filter_map(|e| *e).count());
-
-    (start_dp, functioning_valves)
-}
-
-fn dp_func(
-    memo: &mut ndarray::Array3<Option<u32>>,
-    valves: &[Valve],
-    dist: &ndarray::Array2<u32>,
-    remaining_time: usize,
-    valve_set: usize,
-    pos: usize,
-) -> u32 {
-    if let Some(memoized) = memo[(remaining_time, valve_set, pos)] {
-        memoized
-    } else {
-        let this_relief = valves[pos].flow * remaining_time as u32;
-
-        let result = this_relief
-            + (0..valves.len())
-                .filter_map(|idx| {
-                    let bit = 1 << idx;
-                    if valve_set & bit != 0 {
-                        let steps = dist[(pos, idx)];
-                        if steps + 1 < remaining_time as u32 {
-                            Some(dp_func(
-                                memo,
-                                valves,
-                                dist,
-                                remaining_time - steps as usize - 1,
-                                valve_set & !bit,
-                                idx,
-                            ))
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    }
-                })
-                .fold(0, Ord::max);
-
-        memo[(remaining_time, valve_set, pos)] = Some(result);
-
-        result
-    }
 }
 
 fn search_permutations(
