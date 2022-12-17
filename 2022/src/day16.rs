@@ -1,15 +1,14 @@
 use std::{cmp::Reverse, fmt::Write, str::Utf8Error};
 
-use anyhow::{bail, Context};
 use nom::{
     branch::alt,
     bytes::complete::{tag, take},
-    combinator::{map, map_res, opt},
+    combinator::map_res,
     multi::{many1, separated_list1},
     sequence::{pair, preceded, separated_pair, terminated},
     IResult,
 };
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 
 use crate::{
     parsers::{self, newline},
@@ -98,85 +97,18 @@ fn compile_network(input: &[u8]) -> anyhow::Result<(Vec<Valve>, usize)> {
     Ok((valves, id_to_index["AA"]))
 }
 
-fn search_dp(valves: &[Valve], start: usize, max_time: usize) -> (Vec<u32>, usize) {
-    let dist = floyd_warshall(valves);
-    let functioning_valves = valves.iter().take_while(|v| v.flow > 0).count();
-
-    let mut dp =
-        ndarray::Array3::<u32>::zeros((max_time + 1, 1 << functioning_valves, functioning_valves));
-
-    // dp[remaining_time][set of valves to operate][start]
-    //  = maximum relief achievable with given time and valves having just opened start
-    //  = flow[start] * remaining_time + max { relief of later steps }
-    //
-
-    for remaining_time in 1..=max_time {
-        for valve_set in 0..(1 << functioning_valves) {
-            let mut bits: usize = (1 << functioning_valves) - 1 - valve_set;
-            while bits != 0 {
-                let pos = bits.trailing_zeros() as usize;
-                let bit = bits & bits.wrapping_neg();
-                bits ^= bit;
-
-                let this_relief = valves[pos].flow * remaining_time as u32;
-
-                dp[(remaining_time, valve_set, pos)] = this_relief
-                    + (0..functioning_valves)
-                        .filter_map(|idx| {
-                            let bit = 1 << idx;
-                            if valve_set & bit != 0 {
-                                let steps = dist[(pos, idx)];
-                                if steps + 1 < remaining_time as u32 {
-                                    Some(
-                                        dp[(
-                                            remaining_time - steps as usize - 1,
-                                            valve_set & !bit,
-                                            idx,
-                                        )],
-                                    )
-                                } else {
-                                    None
-                                }
-                            } else {
-                                None
-                            }
-                        })
-                        .fold(0, Ord::max);
-            }
-        }
-    }
-
-    let start_dp: Vec<_> = (0..(1 << functioning_valves))
-        .map(|all_valves| {
-            (0..functioning_valves)
-                .filter_map(|first| {
-                    let bit = 1 << first;
-                    let steps = dist[(start, first)];
-                    if all_valves & bit != 0 && steps + 1 < max_time as u32 {
-                        Some(dp[(max_time - steps as usize - 1, all_valves & !bit, first)])
-                    } else {
-                        None
-                    }
-                })
-                .fold(0, Ord::max)
-        })
-        .collect();
-    (start_dp, functioning_valves)
-}
-
 fn simple_dp(valves: &[Valve], max_time: usize) -> (ndarray::Array2<u32>, usize) {
     let functioning_valves = valves.iter().take_while(|v| v.flow > 0).count();
-
-    // similar to `search_dp`, but the time dimension is implicit, and we always perform steps of 1
-    // through time
-
-    // This order of dimensions is almost 30% faster than the reverse layout
-    let mut dp = ndarray::Array2::<u32>::zeros((valves.len(), 1 << functioning_valves));
-    let mut prev = dp.clone();
 
     // dp[(time])[set of valves to operate][start]
     //  = maximum relief achievable with given time starting at start
     //  = max { relief by moving, relief by opening }
+
+    // NOTE: The time dimension is implicit by performing DP on windows of size 2 through time.
+
+    // This order of dimensions is almost 30% faster than the reverse layout
+    let mut dp = ndarray::Array2::<u32>::zeros((valves.len(), 1 << functioning_valves));
+    let mut prev = dp.clone();
 
     for remaining_time in 1..max_time {
         for pos in 0..valves.len() {
@@ -349,6 +281,7 @@ fn parse_valve(input: &[u8]) -> IResult<&[u8], SrcValve> {
     )(input)
 }
 
+#[allow(unused)]
 fn to_dot(valves: &[SrcValve]) -> String {
     let mut out = String::new();
     writeln!(&mut out, "graph G {{").unwrap();
