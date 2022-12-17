@@ -179,8 +179,11 @@ fn search_permutations(
             let hypothetical_relief =
                 relief + (next_time - cur.time) * flow + (max_time - next_time) * total_flow;
 
-            if cur.time + steps + 1 > max_time || hypothetical_relief <= best_relief {
-                // unreachable
+            if hypothetical_relief <= best_relief {
+                // undo
+                perm.swap(taken, taken + next);
+            } else if cur.time + steps + 1 > max_time {
+                // cannot reach destination within time
                 let final_relief = relief + (max_time - cur.time) * flow;
 
                 if final_relief > best_relief {
