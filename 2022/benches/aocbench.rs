@@ -27,7 +27,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     bench_day(c, "day13", aoc::day13::RUN, &include_input_env!("day13"));
     bench_day(c, "day14", aoc::day14::RUN, &include_input_env!("day14"));
     bench_day(c, "day15", aoc::day15::RUN, &include_input_env!("day15"));
-    // bench_day(c, "day16", aoc::day16::RUN, &include_input_env!("day16"));
+    bench_day(c, "day16", aoc::day16::RUN, &include_input_env!("day16"));
     bench_day(c, "day17", aoc::day17::RUN, &include_input_env!("day17"));
     // bench_day(c, "day18", aoc::day18::RUN, &include_input_env!("day18"));
     // bench_day(c, "day19", aoc::day19::RUN, &include_input_env!("day19"));

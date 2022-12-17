@@ -21,17 +21,8 @@ pub static RUN: Day = Day { part1, part2 };
 pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     let (valves, _, id_to_index) = compile_network(input)?;
 
-    let dp = run_dp(&valves, id_to_index["AA"], 30);
-    let max_valves = dp.shape()[1];
-
-    let mut global_best = None;
-    for open in 0..max_valves {
-        for pos in 0..valves.len() {
-            global_best = global_best.max(dp[(30, open, pos)])
-        }
-    }
-
-    Ok(global_best.context("no solution")?.to_string())
+    let best = run_permute(&valves, id_to_index["AA"], 30);
+    Ok(best.to_string())
 }
 
 pub fn part2(input: &[u8]) -> anyhow::Result<String> {
@@ -142,6 +133,114 @@ fn run_dp(valves: &[Valve], start: usize, max_time: usize) -> ndarray::Array3<Op
     }
 
     dp
+}
+
+fn run_permute(valves: &[Valve], start: usize, max_time: u32) -> u32 {
+    let dist = floyd_warshall(valves);
+    let functioning_valves = valves.iter().take_while(|v| v.flow > 0).count();
+
+    let mut perm: Vec<_> = (0..functioning_valves).collect();
+    let mut taken = 0;
+
+    let mut todo = vec![State {
+        pos: start,
+        flow: 0,
+        relief: 0,
+        time: 0,
+        choice: 0,
+        unswap: 0,
+    }];
+
+    let mut best_relief = 0;
+
+    while let Some(mut cur) = todo.pop() {
+        assert_eq!(taken, todo.len());
+        if taken + cur.choice < perm.len() {
+            // remember choice
+            let next = cur.choice;
+            cur.choice += 1;
+            todo.push(cur);
+
+            // Go there and turn valve on
+            perm.swap(taken, taken + next);
+
+            let next_pos = perm[taken];
+            let steps = dist[(cur.pos, next_pos)];
+
+            if cur.time + steps + 1 > max_time {
+                // unreachable
+                let final_relief = cur.relief + (max_time - cur.time) * cur.flow;
+
+                if final_relief > best_relief {
+                    best_relief = final_relief;
+                }
+
+                // undo
+                perm.swap(taken, taken + next);
+            } else {
+                todo.push(State {
+                    pos: next_pos,
+                    flow: cur.flow + valves[next_pos].flow,
+                    relief: cur.relief + cur.flow * (steps + 1),
+                    time: cur.time + steps + 1,
+                    choice: 0,
+                    unswap: taken + next,
+                });
+                taken += 1;
+            }
+        } else {
+            // done exploring this branch
+            let final_relief = cur.relief + (max_time - cur.time) * cur.flow;
+
+            if final_relief > best_relief {
+                best_relief = final_relief;
+            }
+
+            if taken > 0 {
+                // unless popping off last element:
+                taken -= 1;
+                perm.swap(taken, cur.unswap);
+            }
+        }
+    }
+
+    best_relief
+}
+
+#[derive(Clone, Copy)]
+struct State {
+    pos: usize,
+    flow: u32,
+    relief: u32,
+    time: u32,
+    choice: usize,
+    unswap: usize,
+}
+
+/// Computes distances between each pair of vertices
+/// Curtesy of https://en.wikipedia.org/wiki/Floyd–Warshall_algorithm
+fn floyd_warshall(valves: &[Valve]) -> ndarray::Array2<u32> {
+    let mut dist = ndarray::Array2::<u32>::from_elem((valves.len(), valves.len()), u32::MAX);
+    for v in valves {
+        for n in v.neighbors.iter().copied() {
+            assert_ne!(v.id, n);
+            dist[(v.id, n)] = 1;
+        }
+        dist[(v.id, v.id)] = 0;
+    }
+
+    for k in 0..valves.len() {
+        for i in 0..valves.len() {
+            for j in 0..valves.len() {
+                let indirect = dist[(i, k)].saturating_add(dist[(k, j)]);
+                if dist[(i, j)] > indirect {
+                    dist[(i, j)] = indirect;
+                }
+            }
+        }
+    }
+
+    dist
 }
 
 fn parse_valve(input: &[u8]) -> IResult<&[u8], SrcValve> {
