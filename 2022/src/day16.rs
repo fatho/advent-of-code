@@ -99,6 +99,7 @@ fn search_permutations(
     max_time: u32,
 ) -> u32 {
     let mut taken = 0;
+    let total_flow = perm.iter().map(|index| valves[*index].flow).sum::<u32>();
 
     let mut todo = vec![State {
         pos: start,
@@ -113,6 +114,7 @@ fn search_permutations(
 
     while let Some(mut cur) = todo.pop() {
         assert_eq!(taken, todo.len());
+
         if taken + cur.choice < perm.len() {
             // remember choice
             let next = cur.choice;
@@ -125,7 +127,11 @@ fn search_permutations(
             let next_pos = perm[taken];
             let steps = dist[(cur.pos, next_pos)];
 
-            if cur.time + steps + 1 > max_time {
+            // assuming we'd open all remaining valves instantaneously, could we still improve the
+            // solution?
+            let hypothetical_relief = cur.relief + (max_time - cur.time) * total_flow;
+
+            if cur.time + steps + 1 > max_time || hypothetical_relief <= best_relief {
                 // unreachable
                 let final_relief = cur.relief + (max_time - cur.time) * cur.flow;
 
@@ -252,10 +258,11 @@ struct SrcValve<'a> {
     neighbors: Vec<&'a str>,
 }
 
+#[derive(Debug)]
 struct Valve {
     id: usize,
     flow: u32,
     neighbors: Vec<usize>,
 }
 
-// crate::test_day!(RUN, "day16", "2330", "2675");
+crate::test_day!(RUN, "day16", "2330", "2675");
