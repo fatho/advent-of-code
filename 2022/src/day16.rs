@@ -98,23 +98,21 @@ fn search_permutations(
     start: usize,
     max_time: u32,
 ) -> u32 {
-    let mut taken = 0;
     let total_flow = perm.iter().map(|index| valves[*index].flow).sum::<u32>();
 
+    let mut taken = 0;
+    let mut flow = 0;
+    let mut relief = 0;
+
     let mut todo = vec![State {
-        pos: start,
-        flow: 0,
-        relief: 0,
+        pos: start as u32,
         time: 0,
         choice: 0,
-        unswap: 0,
     }];
 
     let mut best_relief = 0;
 
     while let Some(mut cur) = todo.pop() {
-        assert_eq!(taken, todo.len());
-
         if taken + cur.choice < perm.len() {
             // remember choice
             let next = cur.choice;
@@ -125,15 +123,15 @@ fn search_permutations(
             perm.swap(taken, taken + next);
 
             let next_pos = perm[taken];
-            let steps = dist[(cur.pos, next_pos)];
+            let steps = dist[(cur.pos as usize, next_pos)];
 
             // assuming we'd open all remaining valves instantaneously, could we still improve the
             // solution?
-            let hypothetical_relief = cur.relief + (max_time - cur.time) * total_flow;
+            let hypothetical_relief = relief + (max_time - cur.time) * total_flow;
 
             if cur.time + steps + 1 > max_time || hypothetical_relief <= best_relief {
                 // unreachable
-                let final_relief = cur.relief + (max_time - cur.time) * cur.flow;
+                let final_relief = relief + (max_time - cur.time) * flow;
 
                 if final_relief > best_relief {
                     best_relief = final_relief;
@@ -142,28 +140,33 @@ fn search_permutations(
                 // undo
                 perm.swap(taken, taken + next);
             } else {
+                relief += flow * (steps + 1);
+                flow += valves[next_pos].flow;
                 todo.push(State {
-                    pos: next_pos,
-                    flow: cur.flow + valves[next_pos].flow,
-                    relief: cur.relief + cur.flow * (steps + 1),
+                    pos: next_pos as u32,
                     time: cur.time + steps + 1,
                     choice: 0,
-                    unswap: taken + next,
                 });
                 taken += 1;
             }
         } else {
             // done exploring this branch
-            let final_relief = cur.relief + (max_time - cur.time) * cur.flow;
+            let final_relief = relief + (max_time - cur.time) * flow;
 
             if final_relief > best_relief {
                 best_relief = final_relief;
             }
 
-            if taken > 0 {
+            if let Some(last) = todo.last() {
                 // unless popping off last element:
                 taken -= 1;
-                perm.swap(taken, cur.unswap);
+                let unswap = last.choice - 1;
+                perm.swap(taken, taken + unswap);
+
+                let pos_flow = valves[cur.pos as usize].flow;
+                flow -= pos_flow;
+                let rev_steps = cur.time - last.time;
+                relief -= flow * rev_steps;
             }
         }
     }
@@ -173,12 +176,9 @@ fn search_permutations(
 
 #[derive(Clone, Copy)]
 struct State {
-    pos: usize,
-    flow: u32,
-    relief: u32,
+    pos: u32,
     time: u32,
     choice: usize,
-    unswap: usize,
 }
 
 /// Computes distances between each pair of vertices
