@@ -34,39 +34,17 @@ pub fn part1(input: &[u8]) -> anyhow::Result<String> {
 pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     let (valves, start) = compile_network(input)?;
 
-    // let (start_dp, functioning) = search_dp(&valves, start, 26);
-
-    // // Split is symmetric, so we can skip half of them
-    // let mut best = 0;
-    // for split in 0..(1 << (functioning - 1)) {
-    //     let other = (1 << functioning) - 1 - split;
-
-    //     let best_me = start_dp[split];
-    //     let best_ele = start_dp[other];
-
-    //     let sum = best_me + best_ele;
-
-    //     if sum > best {
-    //         best = sum;
-    //     }
-    // }
-
-    let (dp, functioning) = simple_dp(&valves, 26);
+    let (dp, functioning) = simple_dp(&valves, start, 26);
 
     // Split is symmetric, so we can skip half of them
-    let mut best = 0;
-    for split in 0..(1 << (functioning - 1)) {
-        let other = (1 << functioning) - 1 - split;
+    let best = (0..(1 << (functioning - 1)))
+        .map(|lower| {
+            let upper = (1 << functioning) - 1 - lower;
 
-        let best_me = dp[(start, split)];
-        let best_ele = dp[(start, other)];
-
-        let sum = best_me + best_ele;
-
-        if sum > best {
-            best = sum;
-        }
-    }
+            dp[(start, lower)] + dp[(start, upper)]
+        })
+        .max()
+        .unwrap_or(0);
 
     Ok(best.to_string())
 }
@@ -97,8 +75,9 @@ fn compile_network(input: &[u8]) -> anyhow::Result<(Vec<Valve>, usize)> {
     Ok((valves, id_to_index["AA"]))
 }
 
-fn simple_dp(valves: &[Valve], max_time: usize) -> (ndarray::Array2<u32>, usize) {
+fn simple_dp(valves: &[Valve], start: usize, max_time: usize) -> (ndarray::Array2<u32>, usize) {
     let functioning_valves = valves.iter().take_while(|v| v.flow > 0).count();
+    let dist = floyd_warshall(valves);
 
     // dp[(time])[set of valves to operate][start]
     //  = maximum relief achievable with given time starting at start
@@ -112,6 +91,12 @@ fn simple_dp(valves: &[Valve], max_time: usize) -> (ndarray::Array2<u32>, usize)
 
     for remaining_time in 1..max_time {
         for pos in 0..valves.len() {
+            // can we even get here? - Pruning the DP array to only contain values relevant for
+            // start
+            if max_time - remaining_time < dist[(start, pos)] as usize {
+                continue;
+            }
+
             let bit = 1 << pos;
             for valve_set in 0..(1 << functioning_valves) {
                 // opening valve: position remains the same, set of valves shrinks
