@@ -144,6 +144,9 @@ fn search_permutations(
     max_time: u32,
 ) -> u32 {
     let total_flow = perm.iter().map(|index| valves[*index].flow).sum::<u32>();
+    // Sorting provides a minor speedup by exploring more reasonable paths first - but doesn't
+    // influence correctness
+    perm.sort_unstable_by_key(|p| dist[(start, *p)]);
 
     let mut taken = 0;
     let mut flow = 0;
@@ -172,7 +175,9 @@ fn search_permutations(
 
             // assuming we'd open all remaining valves instantaneously, could we still improve the
             // solution?
-            let hypothetical_relief = relief + (max_time - cur.time) * total_flow;
+            let next_time = cur.time + steps + 1;
+            let hypothetical_relief =
+                relief + (next_time - cur.time) * flow + (max_time - next_time) * total_flow;
 
             if cur.time + steps + 1 > max_time || hypothetical_relief <= best_relief {
                 // unreachable
