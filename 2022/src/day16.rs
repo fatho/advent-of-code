@@ -59,8 +59,8 @@ pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     for split in 0..(1 << (functioning - 1)) {
         let other = (1 << functioning) - 1 - split;
 
-        let best_me = dp[(split, start)];
-        let best_ele = dp[(other, start)];
+        let best_me = dp[(start, split)];
+        let best_ele = dp[(start, other)];
 
         let sum = best_me + best_ele;
 
@@ -168,30 +168,32 @@ fn simple_dp(valves: &[Valve], max_time: usize) -> (ndarray::Array2<u32>, usize)
     let functioning_valves = valves.iter().take_while(|v| v.flow > 0).count();
 
     // similar to `search_dp`, but the time dimension is implicit, and we always perform steps of 1
-    let mut dp = ndarray::Array2::<u32>::zeros((1 << functioning_valves, valves.len()));
+    // through time
+
+    // This order of dimensions is almost 30% faster than the reverse layout
+    let mut dp = ndarray::Array2::<u32>::zeros((valves.len(), 1 << functioning_valves));
     let mut prev = dp.clone();
 
     // dp[(time])[set of valves to operate][start]
     //  = maximum relief achievable with given time starting at start
     //  = max { relief by moving, relief by opening }
-    //
 
     for remaining_time in 1..max_time {
-        for valve_set in 0..(1 << functioning_valves) {
-            for pos in 0..valves.len() {
-                let bit = 1 << pos;
-                // could open pos
-
+        for pos in 0..valves.len() {
+            let bit = 1 << pos;
+            for valve_set in 0..(1 << functioning_valves) {
+                // opening valve: position remains the same, set of valves shrinks
                 let by_opening = if valve_set & bit != 0 {
-                    prev[(valve_set & !bit, pos)] + valves[pos].flow * remaining_time as u32
+                    prev[(pos, valve_set & !bit)] + valves[pos].flow * remaining_time as u32
                 } else {
                     0
                 };
 
-                dp[(valve_set, pos)] = valves[pos]
+                // moving: sets of valves remains, position changes
+                dp[(pos, valve_set)] = valves[pos]
                     .neighbors
                     .iter()
-                    .map(|idx| prev[(valve_set, *idx)])
+                    .map(|idx| prev[(*idx, valve_set)])
                     .fold(by_opening, Ord::max);
             }
         }
