@@ -19,42 +19,53 @@ use crate::{
 pub static RUN: Day = Day { part1, part2 };
 
 pub fn part1(input: &[u8]) -> anyhow::Result<String> {
-    let (valves, _, id_to_index) = compile_network(input)?;
+    let (valves, start) = compile_network(input)?;
 
-    let best = run_permute(&valves, id_to_index["AA"], 30);
+    let dist = floyd_warshall(&valves);
+    let functioning_valves = valves.iter().take_while(|v| v.flow > 0).count();
+
+    let mut perm: Vec<_> = (0..functioning_valves).collect();
+
+    let best = search_permutations(&mut perm, &valves, &dist, start, 30);
     Ok(best.to_string())
 }
 
 pub fn part2(input: &[u8]) -> anyhow::Result<String> {
-    let (valves, _, id_to_index) = compile_network(input)?;
+    let (valves, start) = compile_network(input)?;
 
-    let dp = run_dp(&valves, id_to_index["AA"], 26);
-    let max_valves = dp.shape()[1];
+    let dist = floyd_warshall(&valves);
+    let functioning_valves = valves.iter().take_while(|v| v.flow > 0).count();
 
-    let mut global_best = None;
-    for me_open in 0..max_valves {
-        for elephant_open in 0..max_valves {
-            // sets of valves must be disjoint
-            if me_open & elephant_open != 0 {
-                continue;
-            }
-            for me_pos in 0..valves.len() {
-                for elephant_pos in 0..valves.len() {
-                    global_best =
-                        global_best.max(dp[(26, me_open, me_pos)].and_then(|me| {
-                            dp[(26, elephant_open, elephant_pos)].map(|ele| ele + me)
-                        }))
-                }
+    let mut me_perm = Vec::new();
+    let mut ele_perm = Vec::new();
+    let mut best = 0;
+    // Split is symmetric, so we can skip half of them
+    for split in 0..(1 << (functioning_valves - 1)) {
+        for v in 0..functioning_valves {
+            if split & (1 << v) != 0 {
+                me_perm.push(v);
+            } else {
+                ele_perm.push(v);
             }
         }
+
+        let best_me = search_permutations(&mut me_perm, &valves, &dist, start, 26);
+        let best_ele = search_permutations(&mut ele_perm, &valves, &dist, start, 26);
+
+        let sum = best_me + best_ele;
+
+        if sum > best {
+            best = sum;
+        }
+
+        me_perm.clear();
+        ele_perm.clear();
     }
 
-    Ok(global_best.context("no solution")?.to_string())
+    Ok(best.to_string())
 }
 
-fn compile_network(
-    input: &[u8],
-) -> anyhow::Result<(Vec<Valve>, Vec<&str>, FxHashMap<&str, usize>)> {
+fn compile_network(input: &[u8]) -> anyhow::Result<(Vec<Valve>, usize)> {
     let mut src_valves = parsers::parse(many1(terminated(parse_valve, newline)), input)?;
 
     // Prepare network by putting functioning valves first
@@ -77,69 +88,16 @@ fn compile_network(
         })
         .collect();
 
-    Ok((valves, index_to_id, id_to_index))
+    Ok((valves, id_to_index["AA"]))
 }
 
-fn run_dp(valves: &[Valve], start: usize, max_time: usize) -> ndarray::Array3<Option<u32>> {
-    let functioning_valves = valves.iter().take_while(|v| v.flow > 0).count();
-
-    // DP
-
-    // [time][valves][position]
-
-    let max_valves = 1 << functioning_valves;
-    let mut dp =
-        ndarray::Array3::<Option<u32>>::from_elem((max_time + 1, max_valves, valves.len()), None);
-
-    // Init
-    dp[(0, 0, start)] = Some(0);
-
-    for time in 1..=max_time {
-        for open in 0..max_valves {
-            let current_flow = (0..functioning_valves)
-                .map(|vi| {
-                    if open & (1 << vi) != 0 {
-                        valves[vi].flow
-                    } else {
-                        0
-                    }
-                })
-                .sum::<u32>();
-
-            for pos in 0..valves.len() {
-                let pos_bit = 1 << pos;
-
-                let mut best = None;
-
-                // could've opened
-                if open & pos_bit != 0 {
-                    best = dp[(time - 1, open & !pos_bit, pos)]
-                        .map(|prev| prev + current_flow - valves[pos].flow)
-                };
-
-                // could've stayed
-                let by_staying = dp[(time - 1, open, pos)].map(|prev| prev + current_flow);
-                best = best.max(by_staying);
-
-                // could've moved
-                for from in valves[pos].neighbors.iter() {
-                    let by_moving = dp[(time - 1, open, *from)].map(|prev| prev + current_flow);
-                    best = best.max(by_moving);
-                }
-
-                dp[(time, open, pos)] = best;
-            }
-        }
-    }
-
-    dp
-}
-
-fn run_permute(valves: &[Valve], start: usize, max_time: u32) -> u32 {
-    let dist = floyd_warshall(valves);
-    let functioning_valves = valves.iter().take_while(|v| v.flow > 0).count();
-
-    let mut perm: Vec<_> = (0..functioning_valves).collect();
+fn search_permutations(
+    perm: &mut [usize],
+    valves: &[Valve],
+    dist: &ndarray::Array2<u32>,
+    start: usize,
+    max_time: u32,
+) -> u32 {
     let mut taken = 0;
 
     let mut todo = vec![State {
@@ -300,4 +258,4 @@ struct Valve {
     neighbors: Vec<usize>,
 }
 
-// crate::test_day!(RUN, "day16", "2330", "<solution part2>");
+// crate::test_day!(RUN, "day16", "2330", "2675");
