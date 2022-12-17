@@ -35,16 +35,32 @@ pub fn part1(input: &[u8]) -> anyhow::Result<String> {
 pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     let (valves, start) = compile_network(input)?;
 
-    let (start_dp, functioning) = search_dp(&valves, start, 26);
-    // let (start_dp, functioning) = search_dp_stack_all(&valves, start, 26);
+    // let (start_dp, functioning) = search_dp(&valves, start, 26);
+
+    // // Split is symmetric, so we can skip half of them
+    // let mut best = 0;
+    // for split in 0..(1 << (functioning - 1)) {
+    //     let other = (1 << functioning) - 1 - split;
+
+    //     let best_me = start_dp[split];
+    //     let best_ele = start_dp[other];
+
+    //     let sum = best_me + best_ele;
+
+    //     if sum > best {
+    //         best = sum;
+    //     }
+    // }
+
+    let (dp, functioning) = simple_dp(&valves, 26);
 
     // Split is symmetric, so we can skip half of them
     let mut best = 0;
     for split in 0..(1 << (functioning - 1)) {
         let other = (1 << functioning) - 1 - split;
 
-        let best_me = start_dp[split];
-        let best_ele = start_dp[other];
+        let best_me = dp[(split, start)];
+        let best_ele = dp[(other, start)];
 
         let sum = best_me + best_ele;
 
@@ -89,8 +105,6 @@ fn search_dp(valves: &[Valve], start: usize, max_time: usize) -> (Vec<u32>, usiz
     let mut dp =
         ndarray::Array3::<u32>::zeros((max_time + 1, 1 << functioning_valves, functioning_valves));
 
-    //let mut dp: FxHashMap<(u32, u32, u32), u32> = FxHashMap::default();
-
     // dp[remaining_time][set of valves to operate][start]
     //  = maximum relief achievable with given time and valves having just opened start
     //  = flow[start] * remaining_time + max { relief of later steps }
@@ -98,12 +112,11 @@ fn search_dp(valves: &[Valve], start: usize, max_time: usize) -> (Vec<u32>, usiz
 
     for remaining_time in 1..=max_time {
         for valve_set in 0..(1 << functioning_valves) {
-            for pos in 0..functioning_valves {
-                let bit = 1 << pos;
-                if valve_set & bit != 0 {
-                    // cannot start on an unoperated valve
-                    continue;
-                }
+            let mut bits: usize = (1 << functioning_valves) - 1 - valve_set;
+            while bits != 0 {
+                let pos = bits.trailing_zeros() as usize;
+                let bit = bits & bits.wrapping_neg();
+                bits ^= bit;
 
                 let this_relief = valves[pos].flow * remaining_time as u32;
 
@@ -149,6 +162,44 @@ fn search_dp(valves: &[Valve], start: usize, max_time: usize) -> (Vec<u32>, usiz
         })
         .collect();
     (start_dp, functioning_valves)
+}
+
+fn simple_dp(valves: &[Valve], max_time: usize) -> (ndarray::Array2<u32>, usize) {
+    let functioning_valves = valves.iter().take_while(|v| v.flow > 0).count();
+
+    // similar to `search_dp`, but the time dimension is implicit, and we always perform steps of 1
+    let mut dp = ndarray::Array2::<u32>::zeros((1 << functioning_valves, valves.len()));
+    let mut prev = dp.clone();
+
+    // dp[(time])[set of valves to operate][start]
+    //  = maximum relief achievable with given time starting at start
+    //  = max { relief by moving, relief by opening }
+    //
+
+    for remaining_time in 1..max_time {
+        for valve_set in 0..(1 << functioning_valves) {
+            for pos in 0..valves.len() {
+                let bit = 1 << pos;
+                // could open pos
+
+                let by_opening = if valve_set & bit != 0 {
+                    prev[(valve_set & !bit, pos)] + valves[pos].flow * remaining_time as u32
+                } else {
+                    0
+                };
+
+                dp[(valve_set, pos)] = valves[pos]
+                    .neighbors
+                    .iter()
+                    .map(|idx| prev[(valve_set, *idx)])
+                    .fold(by_opening, Ord::max);
+            }
+        }
+
+        std::mem::swap(&mut prev, &mut dp);
+    }
+
+    (prev, functioning_valves)
 }
 
 fn search_permutations(
