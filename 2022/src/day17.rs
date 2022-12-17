@@ -1,11 +1,8 @@
-#![allow(unused)]
-
 use std::fmt::{Display, Write};
 
-use anyhow::bail;
 use rustc_hash::FxHashMap;
 
-use crate::{parsers, Day};
+use crate::Day;
 
 pub static RUN: Day = Day { part1, part2 };
 
@@ -17,47 +14,13 @@ pub fn part1(input: &[u8]) -> anyhow::Result<String> {
         .filter_map(Result::ok)
         .collect();
 
-    let mut jet_stream = Cycle::new(&jet_input).copied();
-    let rocks = Cycle::new(&SHAPES);
+    let mut sim = Simulator::new(&SHAPES, &jet_input);
 
-    let mut cave = Cave::new();
-
-    for shape in rocks.take(2022) {
-        let spawnx = 2;
-        let spawny = cave.rock_height + 3;
-        cave.ensure_height(spawny + shape.height);
-        assert!(
-            !cave.collides(shape, spawnx, spawny),
-            "{spawnx} {spawny}\n{cave}"
-        );
-
-        let mut x = spawnx;
-        let mut y = spawny;
-        loop {
-            // Jet pushing
-            match jet_stream.next().expect("infinite stream") {
-                Jet::Left => {
-                    if x > 0 && !cave.collides(shape, x - 1, y) {
-                        x -= 1;
-                    }
-                }
-                Jet::Right => {
-                    if x + shape.width < Cave::WIDTH && !cave.collides(shape, x + 1, y) {
-                        x += 1;
-                    }
-                }
-            }
-            // Falling down
-            if y == 0 || cave.collides(shape, x, y - 1) {
-                cave.draw(shape, x, y);
-                break;
-            } else {
-                y -= 1;
-            }
-        }
+    for _ in 0..2022 {
+        sim.rock_fall();
     }
 
-    Ok(cave.rock_height.to_string())
+    Ok(sim.cave.rock_height.to_string())
 }
 
 pub fn part2(input: &[u8]) -> anyhow::Result<String> {
@@ -68,10 +31,8 @@ pub fn part2(input: &[u8]) -> anyhow::Result<String> {
         .filter_map(Result::ok)
         .collect();
 
-    let mut jet_stream = Cycle::new(&jet_input);
-    let mut rocks = Cycle::new(&SHAPES);
+    let mut sim = Simulator::new(&SHAPES, &jet_input);
 
-    let mut cave = Cave::new();
     let mut num_rocks = 0;
 
     let mut states: FxHashMap<(usize, usize, Vec<u8>), (usize, usize)> = FxHashMap::default();
@@ -83,9 +44,9 @@ pub fn part2(input: &[u8]) -> anyhow::Result<String> {
         // 2. The index of the next jet
         // 3. The effective portion of the stacked rocks
         let state = (
-            rocks.index,
-            jet_stream.index,
-            cave.relevant_top().to_owned(),
+            sim.current_shape,
+            sim.current_jet,
+            sim.cave.relevant_top().to_owned(),
         );
 
         match states.entry(state) {
@@ -107,56 +68,84 @@ pub fn part2(input: &[u8]) -> anyhow::Result<String> {
                 let remainder = 1000000000000 - prev_count - num_cycles * cycle_length;
 
                 // The final height of the tower consists of the total height gain due to the cycles
-                let height_per_cycle = cave.rock_height - prev_height;
+                let height_per_cycle = sim.cave.rock_height - prev_height;
                 // Plus the height gain due to the initialiation and the partial cycle
                 let final_height = num_cycles * height_per_cycle + heights[prev_count + remainder];
 
                 break final_height;
             }
             std::collections::hash_map::Entry::Vacant(e) => {
-                e.insert((cave.rock_height, num_rocks));
+                e.insert((sim.cave.rock_height, num_rocks));
             }
         }
 
-        let shape = rocks.next().unwrap();
         num_rocks += 1;
-        heights.push(cave.rock_height);
+        heights.push(sim.cave.rock_height);
+        sim.rock_fall();
+    };
+
+    Ok(output.to_string())
+}
+
+struct Simulator<'a> {
+    shapes: &'a [Shape],
+    jets: &'a [Jet],
+    current_shape: usize,
+    current_jet: usize,
+    cave: Cave,
+}
+
+impl<'a> Simulator<'a> {
+    fn new(shapes: &'a [Shape], jets: &'a [Jet]) -> Self {
+        Self {
+            shapes,
+            jets,
+            current_shape: 0,
+            current_jet: 0,
+            cave: Cave::new(),
+        }
+    }
+
+    fn rock_fall(&mut self) {
+        let shape = &self.shapes[self.current_shape];
+        self.current_shape += 1;
+        if self.current_shape == self.shapes.len() {
+            self.current_shape = 0;
+        }
 
         let spawnx = 2;
-        let spawny = cave.rock_height + 3;
-        cave.ensure_height(spawny + shape.height);
-        assert!(
-            !cave.collides(shape, spawnx, spawny),
-            "{spawnx} {spawny}\n{cave}"
-        );
-
+        let spawny = self.cave.rock_height + 3;
+        self.cave.ensure_height(spawny + shape.height);
         let mut x = spawnx;
         let mut y = spawny;
         loop {
             // Jet pushing
-            match jet_stream.next().expect("infinite stream") {
+            let jet = self.jets[self.current_jet];
+            self.current_jet += 1;
+            if self.current_jet == self.jets.len() {
+                self.current_jet = 0;
+            }
+            match jet {
                 Jet::Left => {
-                    if x > 0 && !cave.collides(shape, x - 1, y) {
+                    if x > 0 && !self.cave.collides(shape, x - 1, y) {
                         x -= 1;
                     }
                 }
                 Jet::Right => {
-                    if x + shape.width < Cave::WIDTH && !cave.collides(shape, x + 1, y) {
+                    if x + shape.width < Cave::WIDTH && !self.cave.collides(shape, x + 1, y) {
                         x += 1;
                     }
                 }
             }
             // Falling down
-            if y == 0 || cave.collides(shape, x, y - 1) {
-                cave.draw(shape, x, y);
+            if y == 0 || self.cave.collides(shape, x, y - 1) {
+                self.cave.draw(shape, x, y);
                 break;
             } else {
                 y -= 1;
             }
         }
-    };
-
-    Ok(output.to_string())
+    }
 }
 
 struct Cave {
@@ -285,30 +274,6 @@ impl TryFrom<u8> for Jet {
             b'>' => Ok(Jet::Right),
             _ => Err(()),
         }
-    }
-}
-
-struct Cycle<'a, T> {
-    index: usize,
-    data: &'a [T],
-}
-
-impl<'a, T> Cycle<'a, T> {
-    fn new(data: &'a [T]) -> Self {
-        Self { data, index: 0 }
-    }
-}
-
-impl<'a, T> Iterator for Cycle<'a, T> {
-    type Item = &'a T;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let result = &self.data[self.index];
-        self.index += 1;
-        if self.index == self.data.len() {
-            self.index = 0;
-        }
-        Some(result)
     }
 }
 
