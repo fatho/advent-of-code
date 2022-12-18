@@ -110,25 +110,20 @@ pub fn part2(input: &[u8]) -> anyhow::Result<String> {
         }
     }
 
-    let is_outside = |cube: Vec3<i32>| {
-        voxels
-            .get(index(cube - min))
-            .copied()
-            .map_or(true, |vox| matches!(vox, Voxel::OutsideAir))
-    };
+    let mut out = 0;
 
-    let out: usize = droplets
-        .iter()
-        .map(|droplet| {
-            SIDES
-                .iter()
-                .filter(|side| {
-                    let neighbor = *droplet + **side;
-                    is_outside(neighbor)
-                })
-                .count()
-        })
-        .sum();
+    for droplet in &droplets {
+        for side in SIDES {
+            let neighbor = *droplet + side;
+            let is_outside = voxels
+                .get(index(neighbor - min))
+                .copied()
+                .map_or(true, |vox| matches!(vox, Voxel::OutsideAir));
+            if is_outside {
+                out += 1;
+            }
+        }
+    }
 
     Ok(out.to_string())
 }
@@ -231,12 +226,8 @@ static SIDES: [Vec3<i32>; 6] = [
 
 fn parse_pos(input: &[u8]) -> IResult<&[u8], Vec3<i32>> {
     map(
-        tuple((
-            (terminated(parse_u32, tag(","))),
-            (terminated(parse_u32, tag(","))),
-            parse_u32,
-        )),
-        |(x, y, z)| Vec3 { x, y, z }.map(|elem| elem as i32),
+        tuple((parse_u32, tag(","), parse_u32, tag(","), parse_u32)),
+        |(x, _, y, _, z)| Vec3 { x, y, z }.map(|elem| elem as i32),
     )(input)
 }
 
