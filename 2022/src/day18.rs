@@ -5,7 +5,6 @@ use nom::multi::many0;
 use nom::sequence::{terminated, tuple};
 use nom::IResult;
 use nom::{character::complete::i32 as parse_i32, combinator::map};
-use rustc_hash::FxHashSet;
 
 use crate::parsers::newline;
 use crate::{parsers, Day};
@@ -15,15 +14,32 @@ pub static RUN: Day = Day { part1, part2 };
 pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     let droplets = parsers::parse(many0(terminated(parse_pos, newline)), input)?;
 
-    // TODO: evaluate using Array3 rather than hash set
-    let dropset: FxHashSet<Vec3<i32>> = droplets.into_iter().collect();
+    let (min, max) = if let Some(bounding_box) = aabb(&droplets) {
+        bounding_box
+    } else {
+        // No droplets, no sides
+        return Ok(0u32.to_string());
+    };
 
-    let out: usize = dropset
+    let size = max - min + Vec3::new(1, 1, 1);
+
+    let mut voxels = ndarray::Array3::<bool>::from_elem(index(size), false);
+
+    for droplet in droplets.iter() {
+        voxels[index(*droplet - min)] = true;
+    }
+
+    let out: usize = droplets
         .iter()
-        .map(|drop| {
+        .map(|droplet| {
             SIDES
                 .iter()
-                .filter(|side| !dropset.contains(&(*drop + **side)))
+                .filter(|side| {
+                    !voxels
+                        .get(index(*droplet + **side - min))
+                        .copied()
+                        .unwrap_or(false)
+                })
                 .count()
         })
         .sum();
@@ -34,48 +50,50 @@ pub fn part1(input: &[u8]) -> anyhow::Result<String> {
 pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     let droplets = parsers::parse(many0(terminated(parse_pos, newline)), input)?;
 
-    let (min, max) =
-        droplets
-            .iter()
-            .fold((Vec3::default(), Vec3::default()), |(min, max), droplet| {
-                (
-                    min.zip_with(*droplet, Ord::min),
-                    max.zip_with(*droplet, Ord::max),
-                )
-            });
+    let (min, max) = if let Some(bounding_box) = aabb(&droplets) {
+        bounding_box
+    } else {
+        // No droplets, no sides
+        return Ok(0u32.to_string());
+    };
 
-    let dropset: FxHashSet<Vec3<i32>> = droplets.into_iter().collect();
+    let size = max - min + Vec3::new(1, 1, 1);
+
+    // 0 -> unprocessed air, 1 -> droplet, 2 -> outside air
+    let mut voxels = ndarray::Array3::from_elem(index(size), Voxel::Air);
+
+    for droplet in droplets.iter() {
+        voxels[index(*droplet - min)] = Voxel::Lava;
+    }
 
     let mut todo = vec![];
 
+    // add a cube on the outer edge of the bounding box to the todo set, if it is air
+    let mut push_outside_edge = |cube: Vec3<i32>| {
+        let voxel_index = index(cube - min);
+        if matches!(voxels[voxel_index], Voxel::Air) {
+            // On the outside
+            voxels[voxel_index] = Voxel::OutsideAir;
+            todo.push(cube);
+        }
+    };
+
     for x in min.x..=max.x {
         for y in min.y..=max.y {
-            todo.push(Vec3::new(x, y, min.z));
-            todo.push(Vec3::new(x, y, max.z));
+            push_outside_edge(Vec3::new(x, y, min.z));
+            push_outside_edge(Vec3::new(x, y, max.z));
         }
     }
     for x in min.x..=max.x {
         for z in min.z..=max.z {
-            todo.push(Vec3::new(x, min.y, z));
-            todo.push(Vec3::new(x, max.y, z));
+            push_outside_edge(Vec3::new(x, min.y, z));
+            push_outside_edge(Vec3::new(x, max.y, z));
         }
     }
     for y in min.y..=max.y {
         for z in min.z..=max.z {
-            todo.push(Vec3::new(min.x, y, z));
-            todo.push(Vec3::new(max.x, y, z));
-        }
-    }
-
-    let mut outside: FxHashSet<Vec3<i32>> = FxHashSet::default();
-
-    for i in (0..todo.len()).rev() {
-        if dropset.contains(&todo[i]) {
-            // Not on the outside
-            todo.swap_remove(i);
-        } else {
-            // On the outside
-            outside.insert(todo[i]);
+            push_outside_edge(Vec3::new(min.x, y, z));
+            push_outside_edge(Vec3::new(max.x, y, z));
         }
     }
 
@@ -83,39 +101,58 @@ pub fn part2(input: &[u8]) -> anyhow::Result<String> {
         // cube was on the outside, process neighbors
         for side in SIDES {
             let neighbor = cube + side;
+            let neighbor_index = index(neighbor - min);
 
-            let in_range = neighbor.zip_with(min, |n, bound| n >= bound).and()
-                && neighbor.zip_with(max, |n, bound| n <= bound).and();
-
-            if in_range && !dropset.contains(&neighbor) && !outside.contains(&neighbor) {
-                outside.insert(neighbor);
+            if let Some(Voxel::Air) = voxels.get(neighbor_index) {
+                voxels[neighbor_index] = Voxel::OutsideAir;
                 todo.push(neighbor);
             }
         }
     }
 
     let is_outside = |cube: Vec3<i32>| {
-        let in_range = cube.zip_with(min, |n, bound| n >= bound).and()
-            && cube.zip_with(max, |n, bound| n <= bound).and();
-
-        !in_range || outside.contains(&cube)
+        voxels
+            .get(index(cube - min))
+            .copied()
+            .map_or(true, |vox| matches!(vox, Voxel::OutsideAir))
     };
 
-    let out: usize = dropset
+    let out: usize = droplets
         .iter()
-        .map(|drop| {
+        .map(|droplet| {
             SIDES
                 .iter()
                 .filter(|side| {
-                    let neighbor = *drop + **side;
-                    let is_air = !dropset.contains(&neighbor);
-                    is_air && is_outside(neighbor)
+                    let neighbor = *droplet + **side;
+                    is_outside(neighbor)
                 })
                 .count()
         })
         .sum();
 
     Ok(out.to_string())
+}
+
+fn aabb<T: Ord + Copy>(points: &[Vec3<T>]) -> Option<(Vec3<T>, Vec3<T>)> {
+    points.split_first().map(|(first, rest)| {
+        rest.iter().fold((*first, *first), |(min, max), droplet| {
+            (
+                min.zip_with(*droplet, Ord::min),
+                max.zip_with(*droplet, Ord::max),
+            )
+        })
+    })
+}
+
+fn index(droplet: Vec3<i32>) -> (usize, usize, usize) {
+    (droplet.x as usize, droplet.y as usize, droplet.z as usize)
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Voxel {
+    Lava,
+    Air,
+    OutsideAir,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
