@@ -4,7 +4,7 @@ use nom::bytes::complete::tag;
 use nom::multi::many0;
 use nom::sequence::{terminated, tuple};
 use nom::IResult;
-use nom::{character::complete::i32 as parse_i32, combinator::map};
+use nom::{character::complete::u32 as parse_u32, combinator::map};
 
 use crate::parsers::newline;
 use crate::{parsers, Day};
@@ -178,6 +178,14 @@ impl<T> Vec3<T> {
     pub fn all(self, mut f: impl FnMut(&T) -> bool) -> bool {
         f(&self.x) && f(&self.y) && f(&self.z)
     }
+
+    pub fn map<R>(self, mut f: impl FnMut(T) -> R) -> Vec3<R> {
+        Vec3 {
+            x: f(self.x),
+            y: f(self.y),
+            z: f(self.z),
+        }
+    }
 }
 
 impl Vec3<bool> {
@@ -224,11 +232,11 @@ static SIDES: [Vec3<i32>; 6] = [
 fn parse_pos(input: &[u8]) -> IResult<&[u8], Vec3<i32>> {
     map(
         tuple((
-            (terminated(parse_i32, tag(","))),
-            (terminated(parse_i32, tag(","))),
-            parse_i32,
+            (terminated(parse_u32, tag(","))),
+            (terminated(parse_u32, tag(","))),
+            parse_u32,
         )),
-        |(x, y, z)| Vec3 { x, y, z },
+        |(x, y, z)| Vec3 { x, y, z }.map(|elem| elem as i32),
     )(input)
 }
 
