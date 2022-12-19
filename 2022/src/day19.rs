@@ -23,29 +23,44 @@ pub static RUN: Day = Day { part1, part2 };
 pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     let blueprints = parsers::parse(many0(terminated(parse_blueprint, newline)), input)?;
 
-    println!("{blueprints:?}");
-
     let mut result = 0;
 
     for blueprint in blueprints {
-        println!("evaluating blueprint {}", blueprint.id);
         let mut memo = MemoState {
             seen: FxHashMap::default(),
             best_so_far: 0,
         };
         let mut hist = Vec::new();
-        let res = search(&mut memo, &blueprint, 24, [0; 4], [1, 0, 0, 0], &mut hist);
-        println!("eval({}) = {}", blueprint.id, res);
+        let (res, hist) = search(&mut memo, &blueprint, 24, [0; 4], [1, 0, 0, 0], &mut hist);
         result += (blueprint.id as u64) * (res as u64);
     }
-
-    // Guessed: 1510, too high
 
     Ok(result.to_string())
 }
 
+fn print_trace(blueprint: &Blueprint, hist: &[Option<Res>]) {
+    let mut robots = [1, 0, 0, 0];
+    let mut resources = [0, 0, 0, 0];
+    for (time, build_op) in hist.iter().enumerate() {
+        println!("== Minute {} ==", time + 1);
+        let mut new_robots = robots;
+        if let Some(op) = build_op {
+            println!("Building {} robot", op.name());
+            resources = build(resources, blueprint.cost[op.index()]).unwrap();
+            new_robots[op.index()] += 1;
+        }
+        for (index, count) in robots.into_iter().enumerate() {
+            resources[index] += count;
+        }
+        println!("Resources: {:?} ", resources);
+
+        robots = new_robots;
+        println!("Robots: {:?} ", robots);
+    }
+}
+
 struct MemoState {
-    seen: FxHashMap<State, u16>,
+    seen: FxHashMap<State, (u16, Vec<Option<Res>>)>,
     best_so_far: u16,
 }
 
@@ -56,21 +71,20 @@ fn search(
     resources: [u16; 4],
     robots: [u16; 4],
     hist: &mut Vec<Option<Res>>,
-) -> u16 {
+) -> (u16, Vec<Option<Res>>) {
     let key = (remaining_time, resources, robots);
 
     if let Some(cached) = memo.seen.get(&key) {
-        return *cached;
+        return cached.clone();
     }
 
     if remaining_time == 0 {
         // No time left - count the geodes
-        resources[Res::Geode.index()]
+        (resources[Res::Geode.index()], hist.clone())
     } else {
         // Time left, try stuff
         let new_time = remaining_time - 1;
         let mut new_resources = resources;
-        let mut new_robots = robots;
 
         // each robot procuces its resource
         for (index, count) in robots.into_iter().enumerate() {
@@ -79,11 +93,11 @@ fn search(
 
         // just wait for accumulation
         hist.push(None);
-        let heuristic = extrapolate(blueprint, new_time, new_resources, new_robots);
-        let mut best = if heuristic < memo.best_so_far {
-            0
+        let heuristic = extrapolate(blueprint, new_time, new_resources, robots);
+        let (mut best, mut best_hist) = if heuristic < memo.best_so_far {
+            (0, hist.clone())
         } else {
-            search(memo, blueprint, new_time, new_resources, new_robots, hist)
+            search(memo, blueprint, new_time, new_resources, robots, hist)
         };
         hist.pop();
         if best > memo.best_so_far {
@@ -96,6 +110,7 @@ fn search(
                 for (index, count) in robots.into_iter().enumerate() {
                     built[index] += count;
                 }
+                let mut new_robots = robots;
                 new_robots[res.index()] += 1;
 
                 let heuristic = extrapolate(blueprint, new_time, built, new_robots);
@@ -103,12 +118,13 @@ fn search(
                     continue;
                 }
                 hist.push(Some(res));
-                let by_building = search(memo, blueprint, new_time, built, new_robots, hist);
+                let (by_building, build_hist) =
+                    search(memo, blueprint, new_time, built, new_robots, hist);
                 hist.pop();
-                new_robots[res.index()] -= 1;
 
                 if by_building > best {
                     best = by_building;
+                    best_hist = build_hist;
                     if best > memo.best_so_far {
                         memo.best_so_far = best;
                     }
@@ -116,8 +132,8 @@ fn search(
             }
         }
 
-        memo.seen.insert(key, best);
-        best
+        memo.seen.insert(key, (best, best_hist.clone()));
+        (best, best_hist)
     }
 }
 
@@ -156,8 +172,6 @@ pub fn part2(input: &[u8]) -> anyhow::Result<String> {
 }
 
 fn parse_blueprint(input: &[u8]) -> IResult<&[u8], Blueprint> {
-    // Blueprint 1: Each ore robot costs 4 ore. Each clay robot costs 4 ore. Each obsidian robot costs 4 ore and 18 clay. Each geode robot costs 4 ore and 9 obsidian.
-    // Blueprint 1: Each ore robot costs 4 ore. Each clay robot costs 2 ore. Each obsidian robot costs 3 ore and 14 clay. Each geode robot costs 2 ore and 7 obsidian.
     map(
         separated_pair(
             preceded(tag("Blueprint "), parse_u32),
@@ -213,6 +227,15 @@ impl Res {
     fn index(self) -> usize {
         self as usize
     }
+
+    fn name(self) -> &'static str {
+        match self {
+            Res::Ore => "ore",
+            Res::Clay => "clay",
+            Res::Obsidian => "obsidian",
+            Res::Geode => "geode",
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -221,4 +244,5 @@ struct Blueprint {
     cost: [[u16; 4]; 4],
 }
 
-// crate::test_day!(RUN, "day19", "<solution part1>", "<solution part2>");
+// Super expensive test, leave commented out until optimized
+// crate::test_day!(RUN, "day19", "1487", "<solution part2>");
