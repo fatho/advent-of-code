@@ -30,8 +30,7 @@ pub fn part1(input: &[u8]) -> anyhow::Result<String> {
             seen: FxHashMap::default(),
             best_so_far: 0,
         };
-        let mut hist = Vec::new();
-        let (res, hist) = search(&mut memo, &blueprint, 24, [0; 4], [1, 0, 0, 0], &mut hist);
+        let res = search(&mut memo, &blueprint, 24, [0; 4], [1, 0, 0, 0]);
         result += (blueprint.id as u64) * (res as u64);
     }
 
@@ -49,8 +48,7 @@ pub fn part2(input: &[u8]) -> anyhow::Result<String> {
             seen: FxHashMap::default(),
             best_so_far: 0,
         };
-        let mut hist = Vec::new();
-        let (res, hist) = search(&mut memo, &blueprint, 32, [0; 4], [1, 0, 0, 0], &mut hist);
+        let res = search(&mut memo, &blueprint, 32, [0; 4], [1, 0, 0, 0]);
         result *= (res as u64);
     }
 
@@ -79,7 +77,7 @@ fn print_trace(blueprint: &Blueprint, hist: &[Option<Res>]) {
 }
 
 struct MemoState {
-    seen: FxHashMap<State, (u16, Vec<Option<Res>>)>,
+    seen: FxHashMap<State, u16>,
     best_so_far: u16,
 }
 
@@ -89,17 +87,16 @@ fn search(
     remaining_time: u16,
     resources: [u16; 4],
     robots: [u16; 4],
-    hist: &mut Vec<Option<Res>>,
-) -> (u16, Vec<Option<Res>>) {
+) -> u16 {
     let key = (remaining_time, resources, robots);
 
     if let Some(cached) = memo.seen.get(&key) {
-        return cached.clone();
+        return *cached;
     }
 
     if remaining_time == 0 {
         // No time left - count the geodes
-        (resources[Res::Geode.index()], hist.clone())
+        resources[Res::Geode.index()]
     } else {
         // Time left, try stuff
         let new_time = remaining_time - 1;
@@ -111,14 +108,12 @@ fn search(
         }
 
         // just wait for accumulation
-        hist.push(None);
         let heuristic = extrapolate(blueprint, new_time, new_resources, robots);
-        let (mut best, mut best_hist) = if heuristic < memo.best_so_far {
-            (0, hist.clone())
+        let mut best = if heuristic < memo.best_so_far {
+            0
         } else {
-            search(memo, blueprint, new_time, new_resources, robots, hist)
+            search(memo, blueprint, new_time, new_resources, robots)
         };
-        hist.pop();
         if best > memo.best_so_far {
             memo.best_so_far = best;
         }
@@ -136,14 +131,10 @@ fn search(
                 if heuristic < memo.best_so_far {
                     continue;
                 }
-                hist.push(Some(res));
-                let (by_building, build_hist) =
-                    search(memo, blueprint, new_time, built, new_robots, hist);
-                hist.pop();
+                let by_building = search(memo, blueprint, new_time, built, new_robots);
 
                 if by_building > best {
                     best = by_building;
-                    best_hist = build_hist;
                     if best > memo.best_so_far {
                         memo.best_so_far = best;
                     }
@@ -151,8 +142,8 @@ fn search(
             }
         }
 
-        memo.seen.insert(key, (best, best_hist.clone()));
-        (best, best_hist)
+        memo.seen.insert(key, best);
+        best
     }
 }
 
