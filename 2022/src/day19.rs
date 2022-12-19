@@ -55,7 +55,7 @@ fn print_trace(blueprint: &Blueprint, hist: &[Option<Res>]) {
         let mut new_robots = robots;
         if let Some(op) = build_op {
             println!("Building {} robot", op.name());
-            resources = build(resources, blueprint.cost[op.index()]).unwrap();
+            resources = try_build_robot(resources, blueprint.cost[op.index()]).unwrap();
             new_robots[op.index()] += 1;
         }
         for (index, count) in robots.into_iter().enumerate() {
@@ -99,7 +99,7 @@ fn search_iter(
         if cur.time == 0 {
             best_so_far = best_so_far.max(cur.res[Res::Geode.index()]);
         } else {
-            let heuristic = extrapolate(blueprint, cur.time, cur.res, cur.bot);
+            let heuristic = extrapolate(cur.time, cur.res, cur.bot);
 
             if heuristic < best_so_far {
                 continue;
@@ -120,7 +120,7 @@ fn search_iter(
                 ..cur
             });
             for new_bot in Res::ALL {
-                if let Some(new_res) = build(cur.res, blueprint.cost[new_bot.index()]) {
+                if let Some(new_res) = try_build_robot(cur.res, blueprint.cost[new_bot.index()]) {
                     let mut new_bots = cur.bot;
                     new_bots[new_bot.index()] += 1;
                     todo.push(State {
@@ -141,77 +141,7 @@ fn search_iter(
     best_so_far
 }
 
-fn search(
-    memo: &mut MemoState,
-    blueprint: &Blueprint,
-    remaining_time: u16,
-    resources: [u16; 4],
-    robots: [u16; 4],
-) -> u16 {
-    let key = State {
-        time: remaining_time,
-        res: resources,
-        bot: robots,
-    };
-
-    if let Some(cached) = memo.seen.get(&key) {
-        return *cached;
-    }
-
-    if remaining_time == 0 {
-        // No time left - count the geodes
-        resources[Res::Geode.index()]
-    } else {
-        // Time left, try stuff
-        let new_time = remaining_time - 1;
-        let mut new_resources = resources;
-
-        // each robot procuces its resource
-        for (index, count) in robots.into_iter().enumerate() {
-            new_resources[index] += count;
-        }
-
-        // just wait for accumulation
-        let heuristic = extrapolate(blueprint, new_time, new_resources, robots);
-        let mut best = if heuristic < memo.best_so_far {
-            0
-        } else {
-            search(memo, blueprint, new_time, new_resources, robots)
-        };
-        if best > memo.best_so_far {
-            memo.best_so_far = best;
-        }
-
-        // or choose next robot to build
-        for res in Res::ALL {
-            if let Some(mut built) = build(resources, blueprint.cost[res.index()]) {
-                for (index, count) in robots.into_iter().enumerate() {
-                    built[index] += count;
-                }
-                let mut new_robots = robots;
-                new_robots[res.index()] += 1;
-
-                let heuristic = extrapolate(blueprint, new_time, built, new_robots);
-                if heuristic < memo.best_so_far {
-                    continue;
-                }
-                let by_building = search(memo, blueprint, new_time, built, new_robots);
-
-                if by_building > best {
-                    best = by_building;
-                    if best > memo.best_so_far {
-                        memo.best_so_far = best;
-                    }
-                }
-            }
-        }
-
-        memo.seen.insert(key, best);
-        best
-    }
-}
-
-fn build(mut resources: [u16; 4], cost: [u16; 4]) -> Option<[u16; 4]> {
+fn try_build_robot(mut resources: [u16; 4], cost: [u16; 4]) -> Option<[u16; 4]> {
     for i in 0..4 {
         if resources[i] >= cost[i] {
             resources[i] -= cost[i];
@@ -222,13 +152,8 @@ fn build(mut resources: [u16; 4], cost: [u16; 4]) -> Option<[u16; 4]> {
     Some(resources)
 }
 
-fn extrapolate(
-    blueprint: &Blueprint,
-    mut remaining_time: u16,
-    resources: [u16; 4],
-    robots: [u16; 4],
-) -> u16 {
-    // how many geodes can we crack in the best case
+fn extrapolate(mut remaining_time: u16, resources: [u16; 4], robots: [u16; 4]) -> u16 {
+    // how many geodes can we still crack in the best case
     let mut geodes = resources[Res::Geode.index()];
     let mut geode_bots = robots[Res::Geode.index()];
     while remaining_time > 0 {
