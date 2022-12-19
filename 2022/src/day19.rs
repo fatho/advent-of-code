@@ -11,7 +11,7 @@ use nom::{
     sequence::{delimited, preceded, separated_pair, terminated, tuple},
     IResult,
 };
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{
     parsers::{self, newline},
@@ -26,11 +26,7 @@ pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     let mut result = 0;
 
     for blueprint in blueprints {
-        let mut memo = MemoState {
-            seen: FxHashMap::default(),
-            best_so_far: 0,
-        };
-        let res = search(&mut memo, &blueprint, 24, [0; 4], [1, 0, 0, 0]);
+        let res = search_iter(&blueprint, 24, [0; 4], [1, 0, 0, 0]);
         result += (blueprint.id as u64) * (res as u64);
     }
 
@@ -44,11 +40,7 @@ pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     let mut result = 1;
 
     for blueprint in blueprints {
-        let mut memo = MemoState {
-            seen: FxHashMap::default(),
-            best_so_far: 0,
-        };
-        let res = search(&mut memo, &blueprint, 32, [0; 4], [1, 0, 0, 0]);
+        let res = search_iter(&blueprint, 32, [0; 4], [1, 0, 0, 0]);
         result *= (res as u64);
     }
 
@@ -81,6 +73,74 @@ struct MemoState {
     best_so_far: u16,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct State {
+    time: u16,
+    res: [u16; 4],
+    bot: [u16; 4],
+}
+
+fn search_iter(
+    blueprint: &Blueprint,
+    mut remaining_time: u16,
+    mut resources: [u16; 4],
+    mut robots: [u16; 4],
+) -> u16 {
+    let mut todo = vec![State {
+        time: remaining_time,
+        res: resources,
+        bot: robots,
+    }];
+
+    let mut best_so_far = 0;
+    let mut seen = FxHashSet::default();
+
+    while let Some(cur) = todo.pop() {
+        if cur.time == 0 {
+            best_so_far = best_so_far.max(cur.res[Res::Geode.index()]);
+        } else {
+            let heuristic = extrapolate(blueprint, cur.time, cur.res, cur.bot);
+
+            if heuristic < best_so_far {
+                continue;
+            }
+            if !seen.insert(cur) {
+                continue;
+            }
+
+            // explore branches
+            todo.push(State {
+                time: cur.time - 1,
+                res: [
+                    cur.res[0] + cur.bot[0],
+                    cur.res[1] + cur.bot[1],
+                    cur.res[2] + cur.bot[2],
+                    cur.res[3] + cur.bot[3],
+                ],
+                ..cur
+            });
+            for new_bot in Res::ALL {
+                if let Some(new_res) = build(cur.res, blueprint.cost[new_bot.index()]) {
+                    let mut new_bots = cur.bot;
+                    new_bots[new_bot.index()] += 1;
+                    todo.push(State {
+                        time: cur.time - 1,
+                        res: [
+                            new_res[0] + cur.bot[0],
+                            new_res[1] + cur.bot[1],
+                            new_res[2] + cur.bot[2],
+                            new_res[3] + cur.bot[3],
+                        ],
+                        bot: new_bots,
+                    });
+                }
+            }
+        }
+    }
+
+    best_so_far
+}
+
 fn search(
     memo: &mut MemoState,
     blueprint: &Blueprint,
@@ -88,7 +148,11 @@ fn search(
     resources: [u16; 4],
     robots: [u16; 4],
 ) -> u16 {
-    let key = (remaining_time, resources, robots);
+    let key = State {
+        time: remaining_time,
+        res: resources,
+        bot: robots,
+    };
 
     if let Some(cached) = memo.seen.get(&key) {
         return *cached;
@@ -175,7 +239,7 @@ fn extrapolate(
     geodes
 }
 
-type State = (u16, [u16; 4], [u16; 4]); // (Time, Resources, Robots)
+//type State = (u16, [u16; 4], [u16; 4]); // (Time, Resources, Robots)
 
 fn parse_blueprint(input: &[u8]) -> IResult<&[u8], Blueprint> {
     map(
