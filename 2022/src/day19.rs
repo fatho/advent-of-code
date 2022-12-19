@@ -239,5 +239,4 @@ struct Blueprint {
     cost: [[u16; 4]; 4],
 }
 
-// Super expensive test, leave commented out until optimized
-// crate::test_day!(RUN, "day19", "1487", "13440");
+crate::test_day!(RUN, "day19", "1487", "13440");
