@@ -96,19 +96,20 @@ fn search_iter(
     let mut seen = FxHashSet::default();
 
     while let Some(cur) = todo.pop() {
-        if cur.time == 0 {
-            best_so_far = best_so_far.max(cur.res[Res::Geode.index()]);
+        if cur.time == 1 {
+            // For the last step, it doesn't make sense to build anything, since it would only start
+            // producing resources when the time is already exhausted.
+            best_so_far = best_so_far.max(cur.res[Res::Geode.index()] + cur.bot[Res::Geode.index()])
         } else {
             let heuristic = extrapolate(cur.time, cur.res, cur.bot);
 
-            if heuristic < best_so_far {
+            if heuristic <= best_so_far {
                 continue;
             }
             if !seen.insert(cur) {
                 continue;
             }
 
-            // explore branches
             todo.push(State {
                 time: cur.time - 1,
                 res: [
@@ -219,7 +220,7 @@ enum Res {
 impl Res {
     const ALL: [Res; 4] = [Res::Ore, Res::Clay, Res::Obsidian, Res::Geode];
 
-    fn index(self) -> usize {
+    const fn index(self) -> usize {
         self as usize
     }
 
