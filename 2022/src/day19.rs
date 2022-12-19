@@ -38,6 +38,25 @@ pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     Ok(result.to_string())
 }
 
+pub fn part2(input: &[u8]) -> anyhow::Result<String> {
+    let mut blueprints = parsers::parse(many0(terminated(parse_blueprint, newline)), input)?;
+    blueprints.truncate(3);
+
+    let mut result = 1;
+
+    for blueprint in blueprints {
+        let mut memo = MemoState {
+            seen: FxHashMap::default(),
+            best_so_far: 0,
+        };
+        let mut hist = Vec::new();
+        let (res, hist) = search(&mut memo, &blueprint, 32, [0; 4], [1, 0, 0, 0], &mut hist);
+        result *= (res as u64);
+    }
+
+    Ok(result.to_string())
+}
+
 fn print_trace(blueprint: &Blueprint, hist: &[Option<Res>]) {
     let mut robots = [1, 0, 0, 0];
     let mut resources = [0, 0, 0, 0];
@@ -167,10 +186,6 @@ fn extrapolate(
 
 type State = (u16, [u16; 4], [u16; 4]); // (Time, Resources, Robots)
 
-pub fn part2(input: &[u8]) -> anyhow::Result<String> {
-    bail!("not implemented")
-}
-
 fn parse_blueprint(input: &[u8]) -> IResult<&[u8], Blueprint> {
     map(
         separated_pair(
@@ -245,4 +260,4 @@ struct Blueprint {
 }
 
 // Super expensive test, leave commented out until optimized
-// crate::test_day!(RUN, "day19", "1487", "<solution part2>");
+// crate::test_day!(RUN, "day19", "1487", "13440");
