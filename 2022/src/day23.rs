@@ -1,14 +1,12 @@
-#![allow(unused)]
-
 use std::{
     collections::VecDeque,
     ops::{Add, Sub},
 };
 
-use anyhow::{bail, Context};
+use anyhow::Context;
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use crate::{parsers, Day};
+use crate::Day;
 
 pub static RUN: Day = Day { part1, part2 };
 
@@ -203,6 +201,7 @@ fn parse_input(input: &[u8]) -> Vec<Vec2<i32>> {
     elves_vec
 }
 
+#[allow(unused)]
 fn debug_print(elves: &FxHashSet<Vec2<i32>>) {
     let (min, max) = aabb(elves.iter()).unwrap();
     for y in min.y..=max.y {
