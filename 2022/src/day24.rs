@@ -42,8 +42,6 @@ pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     let mut maps_over_time = Vec::new();
 
     for max_depth in 1.. {
-        println!("Depth: {}", max_depth);
-
         let mut seen = FxHashSet::default();
 
         precompute_maps(&mut maps_over_time, max_depth, &map, entrance, exit);
@@ -124,8 +122,6 @@ pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     let mut maps_over_time = Vec::new();
 
     for max_depth in 1.. {
-        println!("Depth: {}", max_depth);
-
         let mut seen = FxHashSet::default();
 
         precompute_maps(&mut maps_over_time, max_depth, &map, entrance_x, exit_x);
@@ -388,4 +384,4 @@ impl Display for Map<Tile> {
     }
 }
 
-// crate::test_day!(RUN, "day24", "251", "<solution part2>");
+crate::test_day!(RUN, "day24", "251", "758");

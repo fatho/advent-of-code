@@ -597,4 +597,4 @@ fn div_floor(a: i32, b: i32) -> i32 {
     }
 }
 
-// crate::test_day!(RUN, "day22", "93226", "37415");
+crate::test_day!(RUN, "day22", "93226", "37415");
