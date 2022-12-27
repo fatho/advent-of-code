@@ -92,6 +92,13 @@ fn search_iter(
         bot: robots,
     }];
 
+    let max_cost = blueprint.cost.into_iter().fold([0u16; 4], |mut max, cur| {
+        max.iter_mut()
+            .zip(cur)
+            .for_each(|(max, cur)| *max = (*max).max(cur));
+        max
+    });
+
     let mut best_so_far = 0;
     let mut seen = FxHashSet::default();
 
@@ -120,7 +127,14 @@ fn search_iter(
                 ],
                 ..cur
             });
-            for new_bot in Res::ALL {
+            // Explore higher-value builds first
+            for new_bot in Res::ALL.into_iter().rev() {
+                // If we already produce as much of a resource per minute as we can ever
+                // consume in the same amount of time, it doesn't make sense to
+                // produce even more of it
+                if new_bot != Res::Geode && cur.bot[new_bot.index()] >= max_cost[new_bot.index()] {
+                    continue;
+                }
                 if let Some(new_res) = try_build_robot(cur.res, blueprint.cost[new_bot.index()]) {
                     let mut new_bots = cur.bot;
                     new_bots[new_bot.index()] += 1;
@@ -209,7 +223,7 @@ fn parse_blueprint(input: &[u8]) -> IResult<&[u8], Blueprint> {
     )(input)
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Res {
     Ore = 0,
     Clay = 1,
