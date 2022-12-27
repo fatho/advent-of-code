@@ -1,11 +1,11 @@
-#![allow(unused)]
-
 use std::{
+    cmp::Reverse,
+    collections::BinaryHeap,
     fmt::{Display, Write},
     ops::{Index, IndexMut},
 };
 
-use anyhow::{bail, Context};
+use anyhow::Context;
 use nom::{
     bytes::complete::take,
     combinator::map_opt,
@@ -22,89 +22,113 @@ use crate::{
 
 pub static RUN: Day = Day { part1, part2 };
 
-// TODO: optimize
-
 pub fn part1(input: &[u8]) -> anyhow::Result<String> {
     let map = parsers::parse(parse_map, input)?;
 
-    // detect goals
-    let entrance = (0..map.width - 1)
-        .map(|x| map[(x, 0)])
-        .position(|tile| matches!(tile, Tile::Open))
-        .context("no entry")? as u32;
-    let exit = (0..map.width - 1)
-        .map(|x| map[(x, map.height - 1)])
-        .position(|tile| matches!(tile, Tile::Open))
-        .context("no exit")? as u32;
+    let features = extract_features(&map)?;
 
-    // iterative deepening sarch
-    let mut found = None;
     let mut maps_over_time = Vec::new();
-
-    for max_depth in 1.. {
-        let mut seen = FxHashSet::default();
-
-        precompute_maps(&mut maps_over_time, max_depth, &map, entrance, exit);
-
-        let mut todo = vec![State {
+    let steps = compute_path(
+        &mut maps_over_time,
+        &features,
+        State {
             time: 0,
-            pos: (entrance, 0),
-        }];
-
-        while let Some(cur) = todo.pop() {
-            // println!("{:?}", cur);
-            // pruning
-            if !seen.insert(cur) {
-                continue;
-            }
-            // IDS limit
-            if cur.time >= max_depth {
-                continue;
-            }
-            // goal
-            if cur.pos == (exit, map.height - 1) {
-                found = Some(cur.time);
-                break;
-            }
-            // compute blizzard positions at next step
-            let new_time = cur.time + 1;
-            // visit neighbours or wait
-            let (x, y) = cur.pos;
-
-            for (dx, dy) in [(1, 0), (0, 1), (0, 0), (0, -1), (-1, 0)] {
-                let nx = (x as i32) + dx;
-                let ny = (y as i32) + dy;
-                if nx < 0 || ny < 0 || nx >= map.width as i32 || ny >= map.height as i32 {
-                    continue;
-                }
-                let nx = nx as u32;
-                let ny = ny as u32;
-
-                // check if viable
-                let new_map = &maps_over_time[new_time as usize];
-                if matches!(new_map[(nx, ny)], Tile::Open) {
-                    todo.push(State {
-                        time: new_time,
-                        pos: (nx, ny),
-                    })
-                }
-            }
-        }
-
-        if found.is_some() {
-            break;
-        }
-    }
-
-    let steps = found.expect("search only stops when found");
+            pos: features.entrance,
+        },
+        features.exit,
+    )
+    .context("no path")?
+    .time;
 
     Ok(steps.to_string())
 }
 
 pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     let map = parsers::parse(parse_map, input)?;
+    let features = extract_features(&map)?;
 
-    // detect goals
+    // iterative deepening sarch
+    let mut maps_over_time = Vec::new();
+
+    let initial = State {
+        time: 0,
+        pos: features.entrance,
+    };
+    let at_exit = compute_path(&mut maps_over_time, &features, initial, features.exit)
+        .context("no path to exit")?;
+
+    let at_entrance = compute_path(&mut maps_over_time, &features, at_exit, features.entrance)
+        .context("no path back to entrace")?;
+
+    let at_exit_again = compute_path(&mut maps_over_time, &features, at_entrance, features.exit)
+        .context("no path back to exit")?;
+
+    Ok(at_exit_again.time.to_string())
+}
+
+/// Abstract representation of the map.
+struct MapFeatures {
+    width: u32,
+    height: u32,
+    entrance: (u32, u32),
+    exit: (u32, u32),
+    blizzards: Vec<(Dir, (u32, u32))>,
+}
+
+/// A*: pathing through changing 2D map is interpreted as pathing through
+/// static 3D map (with time being the third dimension).
+fn compute_path(
+    maps_over_time: &mut Vec<Map<Tile>>,
+    features: &MapFeatures,
+    from: State,
+    to: (u32, u32),
+) -> Option<State> {
+    let mut open = BinaryHeap::new();
+    let mut closed = FxHashSet::default();
+
+    open.push((Reverse(0), from));
+
+    while let Some((_, cur)) = open.pop() {
+        if !closed.insert(cur) {
+            continue;
+        }
+        // goal
+        if cur.pos == to {
+            return Some(cur);
+        }
+        // compute blizzard positions at next step
+        let new_time = cur.time + 1;
+        precompute_maps(maps_over_time, new_time, features);
+        // visit neighbours or wait
+        let (x, y) = cur.pos;
+
+        for (dx, dy) in [(1, 0), (0, 1), (0, 0), (0, -1), (-1, 0)] {
+            let nx = (x as i32) + dx;
+            let ny = (y as i32) + dy;
+            if nx < 0 || ny < 0 || nx >= features.width as i32 || ny >= features.height as i32 {
+                continue;
+            }
+            let nx = nx as u32;
+            let ny = ny as u32;
+
+            // check if viable
+            let new_map = &maps_over_time[new_time as usize];
+            if matches!(new_map[(nx, ny)], Tile::Open) {
+                let new_dist = new_time + manhattan((nx, ny), features.exit);
+                open.push((
+                    Reverse(new_dist),
+                    State {
+                        time: new_time,
+                        pos: (nx, ny),
+                    },
+                ))
+            }
+        }
+    }
+    None
+}
+
+fn extract_features(map: &Map<Tile>) -> anyhow::Result<MapFeatures> {
     let entrance_x = (0..map.width - 1)
         .map(|x| map[(x, 0)])
         .position(|tile| matches!(tile, Tile::Open))
@@ -117,134 +141,56 @@ pub fn part2(input: &[u8]) -> anyhow::Result<String> {
     let entrance = (entrance_x, 0);
     let exit = (exit_x, map.height - 1);
 
-    // iterative deepening sarch
-    let mut found = None;
-    let mut maps_over_time = Vec::new();
-
-    for max_depth in 1.. {
-        let mut seen = FxHashSet::default();
-
-        precompute_maps(&mut maps_over_time, max_depth, &map, entrance_x, exit_x);
-
-        let mut todo = vec![State2 {
-            time: 0,
-            pos: entrance,
-            goal: 0,
-        }];
-
-        while let Some(cur) = todo.pop() {
-            // println!("{:?}", cur);
-            // pruning
-            if !seen.insert(cur) {
-                continue;
-            }
-            // IDS limit
-            if cur.time >= max_depth {
-                continue;
-            }
-            // goal
-            if cur.goal == 2 && cur.pos == exit {
-                found = Some(cur.time);
-                break;
-            }
-            let mut new_goal = cur.goal;
-            if cur.goal == 1 && cur.pos == entrance {
-                new_goal = 2;
-            } else if cur.goal == 0 && cur.pos == exit {
-                new_goal = 1;
-            }
-
-            // compute blizzard positions at next step
-            let new_time = cur.time + 1;
-            // visit neighbours or wait
-            let (x, y) = cur.pos;
-
-            let offsets = if cur.goal == 1 {
-                &[(0, -1), (-1, 0), (0, 0), (1, 0), (0, 1)]
-            } else {
-                &[(1, 0), (0, 1), (0, 0), (0, -1), (-1, 0)]
-            };
-
-            for (dx, dy) in offsets {
-                let nx = (x as i32) + dx;
-                let ny = (y as i32) + dy;
-                if nx < 0 || ny < 0 || nx >= map.width as i32 || ny >= map.height as i32 {
-                    continue;
-                }
-                let nx = nx as u32;
-                let ny = ny as u32;
-
-                // check if viable
-                let new_map = &maps_over_time[new_time as usize];
-                if matches!(new_map[(nx, ny)], Tile::Open) {
-                    todo.push(State2 {
-                        time: new_time,
-                        pos: (nx, ny),
-                        goal: new_goal,
-                    })
-                }
-            }
-        }
-
-        if found.is_some() {
-            break;
-        }
-    }
-
-    let steps = found.expect("search only stops when found");
-
-    Ok(steps.to_string())
-}
-
-fn precompute_maps(
-    maps_over_time: &mut Vec<Map<Tile>>,
-    max_time: u32,
-    original_map: &Map<Tile>,
-    entrance: u32,
-    exit: u32,
-) {
     let mut blizzards = Vec::new();
-    for y in 1..original_map.height - 1 {
-        for x in 1..original_map.width - 1 {
-            if let Tile::Blizzard(dir) = original_map[(x, y)] {
+    for y in 1..map.height - 1 {
+        for x in 1..map.width - 1 {
+            if let Tile::Blizzard(dir) = map[(x, y)] {
                 blizzards.push((dir, (x, y)));
             }
         }
     }
+
+    Ok(MapFeatures {
+        width: map.width,
+        height: map.height,
+        entrance,
+        exit,
+        blizzards,
+    })
+}
+
+fn precompute_maps(maps_over_time: &mut Vec<Map<Tile>>, max_time: u32, features: &MapFeatures) {
+    let width = features.width;
+    let height = features.height;
+
     for time in maps_over_time.len()..max_time as usize + 1 {
-        let mut tmp = Map::new(original_map.width, original_map.height, Tile::Open);
-        for y in 0..original_map.height {
+        let mut tmp = Map::new(width, height, Tile::Open);
+        for y in 0..height {
             tmp[(0, y)] = Tile::Wall;
-            tmp[(original_map.width - 1, y)] = Tile::Wall;
+            tmp[(width - 1, y)] = Tile::Wall;
         }
-        for x in 0..original_map.width {
-            tmp[(x, 0)] = if x == entrance {
-                Tile::Open
-            } else {
-                Tile::Wall
-            };
-            tmp[(x, original_map.height - 1)] = if x == exit { Tile::Open } else { Tile::Wall };
+        for x in 0..width {
+            tmp[(x, 0)] = Tile::Wall;
+            tmp[(x, height - 1)] = Tile::Wall;
         }
-        for (dir, orig) in blizzards.iter() {
+        tmp[features.entrance] = Tile::Open;
+        tmp[features.exit] = Tile::Open;
+        for (dir, orig) in features.blizzards.iter() {
             let new_pos = match dir {
                 Dir::Up => (
                     orig.0,
-                    1 + (orig.1 as i32 - 1 - time as i32).rem_euclid(original_map.height as i32 - 2)
-                        as u32,
+                    1 + (orig.1 as i32 - 1 - time as i32).rem_euclid(height as i32 - 2) as u32,
                 ),
                 Dir::Down => (
                     orig.0,
-                    1 + (orig.1 as i32 - 1 + time as i32).rem_euclid(original_map.height as i32 - 2)
-                        as u32,
+                    1 + (orig.1 as i32 - 1 + time as i32).rem_euclid(height as i32 - 2) as u32,
                 ),
                 Dir::Left => (
-                    1 + (orig.0 as i32 - 1 - time as i32).rem_euclid(original_map.width as i32 - 2)
-                        as u32,
+                    1 + (orig.0 as i32 - 1 - time as i32).rem_euclid(width as i32 - 2) as u32,
                     orig.1,
                 ),
                 Dir::Right => (
-                    1 + (orig.0 as i32 - 1 + time as i32).rem_euclid(original_map.width as i32 - 2)
-                        as u32,
+                    1 + (orig.0 as i32 - 1 + time as i32).rem_euclid(width as i32 - 2) as u32,
                     orig.1,
                 ),
             };
@@ -252,6 +198,10 @@ fn precompute_maps(
         }
         maps_over_time.push(tmp);
     }
+}
+
+fn manhattan(a: (u32, u32), b: (u32, u32)) -> u32 {
+    a.0.abs_diff(b.0) + a.1.abs_diff(b.1)
 }
 
 fn parse_map(input: &[u8]) -> IResult<&[u8], Map<Tile>> {
@@ -304,13 +254,6 @@ fn parse_tile(input: &[u8]) -> IResult<&[u8], Tile> {
 struct State {
     time: u32,
     pos: (u32, u32),
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
-struct State2 {
-    time: u32,
-    pos: (u32, u32),
-    goal: u32,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
