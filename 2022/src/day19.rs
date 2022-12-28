@@ -169,14 +169,13 @@ fn try_build_robot(mut resources: [u16; 4], cost: [u16; 4]) -> Option<[u16; 4]> 
     Some(resources)
 }
 
-fn extrapolate(mut remaining_time: u16, resources: [u16; 4], robots: [u16; 4]) -> u16 {
+fn extrapolate(remaining_time: u16, resources: [u16; 4], robots: [u16; 4]) -> u16 {
     // how many geodes can we still crack in the best case
     let mut geodes = resources[Res::Geode.index()];
     let mut geode_bots = robots[Res::Geode.index()];
-    while remaining_time > 0 {
+    for _ in 0..remaining_time {
         geodes += geode_bots;
         geode_bots += 1;
-        remaining_time -= 1;
     }
     geodes
 }
