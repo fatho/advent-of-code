@@ -4,8 +4,8 @@ use anyhow::bail;
 use ndarray::array;
 use nom::{
     bytes::complete::tag,
-    character::complete::u16 as parse_u16,
     character::complete::u32 as parse_u32,
+    character::complete::u8 as parse_u8,
     combinator::map,
     multi::many0,
     sequence::{delimited, preceded, separated_pair, terminated, tuple},
@@ -69,32 +69,32 @@ fn print_trace(blueprint: &Blueprint, hist: &[Option<Res>]) {
 }
 
 struct MemoState {
-    seen: FxHashMap<State, u16>,
-    best_so_far: u16,
+    seen: FxHashMap<State, u8>,
+    best_so_far: u8,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct State {
     // Fields are ordered from most to least distinctive - this speeds up
     // comparisons, and thus the hash table operations.
-    res: [u16; 4],
-    bot: [u16; 4],
-    time: u16,
+    res: [u8; 4],
+    bot: [u8; 4],
+    time: u8,
 }
 
 fn search_iter(
     blueprint: &Blueprint,
-    mut remaining_time: u16,
-    mut resources: [u16; 4],
-    mut robots: [u16; 4],
-) -> u16 {
+    mut remaining_time: u8,
+    mut resources: [u8; 4],
+    mut robots: [u8; 4],
+) -> u8 {
     let mut todo = vec![State {
         time: remaining_time,
         res: resources,
         bot: robots,
     }];
 
-    let max_cost = blueprint.cost.into_iter().fold([0u16; 4], |mut max, cur| {
+    let max_cost = blueprint.cost.into_iter().fold([0u8; 4], |mut max, cur| {
         max.iter_mut()
             .zip(cur)
             .for_each(|(max, cur)| *max = (*max).max(cur));
@@ -158,7 +158,7 @@ fn search_iter(
     best_so_far
 }
 
-fn try_build_robot(mut resources: [u16; 4], cost: [u16; 4]) -> Option<[u16; 4]> {
+fn try_build_robot(mut resources: [u8; 4], cost: [u8; 4]) -> Option<[u8; 4]> {
     for i in 0..4 {
         if resources[i] >= cost[i] {
             resources[i] -= cost[i];
@@ -169,7 +169,7 @@ fn try_build_robot(mut resources: [u16; 4], cost: [u16; 4]) -> Option<[u16; 4]> 
     Some(resources)
 }
 
-fn extrapolate(remaining_time: u16, resources: [u16; 4], robots: [u16; 4]) -> u16 {
+fn extrapolate(remaining_time: u8, resources: [u8; 4], robots: [u8; 4]) -> u8 {
     // how many geodes can we still crack in the best case
     let mut geodes = resources[Res::Geode.index()];
     let mut geode_bots = robots[Res::Geode.index()];
@@ -180,7 +180,7 @@ fn extrapolate(remaining_time: u16, resources: [u16; 4], robots: [u16; 4]) -> u1
     geodes
 }
 
-//type State = (u16, [u16; 4], [u16; 4]); // (Time, Resources, Robots)
+//type State = (u8, [u8; 4], [u8; 4]); // (Time, Resources, Robots)
 
 fn parse_blueprint(input: &[u8]) -> IResult<&[u8], Blueprint> {
     map(
@@ -188,14 +188,14 @@ fn parse_blueprint(input: &[u8]) -> IResult<&[u8], Blueprint> {
             preceded(tag("Blueprint "), parse_u32),
             tag(": "),
             tuple((
-                delimited(tag("Each ore robot costs "), parse_u16, tag(" ore. ")),
-                delimited(tag("Each clay robot costs "), parse_u16, tag(" ore. ")),
+                delimited(tag("Each ore robot costs "), parse_u8, tag(" ore. ")),
+                delimited(tag("Each clay robot costs "), parse_u8, tag(" ore. ")),
                 map(
                     tuple((
                         tag("Each obsidian robot costs "),
-                        parse_u16,
+                        parse_u8,
                         tag(" ore and "),
-                        parse_u16,
+                        parse_u8,
                         tag(" clay. "),
                     )),
                     |(_, ore, _, clay, _)| (ore, clay),
@@ -203,9 +203,9 @@ fn parse_blueprint(input: &[u8]) -> IResult<&[u8], Blueprint> {
                 map(
                     tuple((
                         tag("Each geode robot costs "),
-                        parse_u16,
+                        parse_u8,
                         tag(" ore and "),
-                        parse_u16,
+                        parse_u8,
                         tag(" obsidian."),
                     )),
                     |(_, ore, _, obsidian, _)| (ore, obsidian),
@@ -252,7 +252,7 @@ impl Res {
 #[derive(Debug, Clone)]
 struct Blueprint {
     id: usize,
-    cost: [[u16; 4]; 4],
+    cost: [[u8; 4]; 4],
 }
 
 crate::test_day!(RUN, "day19", "1487", "13440");
