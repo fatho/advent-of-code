@@ -75,9 +75,11 @@ struct MemoState {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct State {
-    time: u16,
+    // Fields are ordered from most to least distinctive - this speeds up
+    // comparisons, and thus the hash table operations.
     res: [u16; 4],
     bot: [u16; 4],
+    time: u16,
 }
 
 fn search_iter(
